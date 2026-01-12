@@ -1,4 +1,7 @@
+use std::sync::Arc;
+
 pub type Res<T> = Result<T, Error>;
+type StdIoError = std::io::Error;
 
 macro_rules! error_enum {
     (
@@ -11,14 +14,14 @@ macro_rules! error_enum {
         #[derive(Debug, Clone)]
         $vis enum $name {
             $(
-                $variant($variant),
+                $variant(Arc<$variant>),
             )*
         }
 
         $(
             impl From<$variant> for $name {
                 fn from(e: $variant) -> Self {
-                    $name::$variant(e)
+                    $name::$variant(Arc::new(e))
                 }
             }
         )*
@@ -27,6 +30,6 @@ macro_rules! error_enum {
 
 error_enum! {
     pub enum Error {
-
+        StdIoError
     }
 }
