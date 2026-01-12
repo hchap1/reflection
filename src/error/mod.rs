@@ -1,3 +1,5 @@
+pub type Res<T> = Result<T, Error>;
+
 macro_rules! error_enum {
     (
         $(#[$meta:meta])*
