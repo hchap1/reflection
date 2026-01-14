@@ -1,7 +1,7 @@
 use std::{convert::Infallible, net::{Ipv4Addr, SocketAddr}};
 use hyper::service::service_fn;
 use http_body_util::Full;
-use hyper::{Request, Response, body::{Body, Bytes}, server::conn::http1};
+use hyper::{Request, Response, body::Bytes, server::conn::http1};
 use hyper_util::rt::{TokioIo, TokioTimer};
 use tokio::net::TcpListener;
 use async_channel::unbounded;
@@ -11,7 +11,7 @@ pub enum ServerError {
     NoQueryOnCallback
 }
 
-use crate::error::{Error, Res};
+use crate::error::{ChannelError, Res};
 
 pub fn process_callback(request: Request<impl hyper::body::Body>) -> Res<()> {
     let query = request.uri().query().ok_or(ServerError::NoQueryOnCallback)?;
@@ -39,5 +39,8 @@ pub async fn run_server() -> Res<()> {
             })
         ).await?;
 
-    let code = receiver.try_recv()?;
+    match receiver.try_recv() {
+        Ok(code) => code,
+        Err(e) => Err(ChannelError::from(e).into())
+    }
 }
