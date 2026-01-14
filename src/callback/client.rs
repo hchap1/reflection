@@ -30,14 +30,12 @@ impl ApplicationHandler for OAuthWindow {
         ) {}
 }
 
-pub async fn launch_oauth_window() -> Res<()> {
-    tokio::task::spawn_blocking(|| {
-        let event_loop = EventLoop::new()?;
-        event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
+pub fn launch_oauth_window() -> Res<()> {
+    let event_loop = EventLoop::new()?;
+    event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
 
-        let mut window = OAuthWindow::default();
-        event_loop.run_app(&mut window)?;
+    let mut window = OAuthWindow::default();
+    event_loop.run_app(&mut window)?;
 
-        Ok(())
-    }).await?
+    Ok(())
 }

@@ -1,12 +1,10 @@
 #![allow(clippy::enum_variant_names)]
 
-use crate::callback::server::generate_csrf;
-
 mod callback;
 mod error;
 mod util;
 
-#[tokio::main]
-async fn main() {
-    
+fn main() {
+    let ret = callback::client::launch_oauth_window();
+    println!("{ret:?}");
 }
