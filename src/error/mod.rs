@@ -6,6 +6,7 @@ use rand::rand_core::OsError;
 use tokio::task::JoinError;
 
 use crate::callback::server::ServerError;
+use crate::oauth2::api::OAUTH2ApiError;
 
 pub type Res<T> = Result<T, Error>;
 type StdIoError = std::io::Error;
@@ -74,6 +75,7 @@ error_enum! {
         OsError,
         JoinError,
         ReqwestError,
-        SerdeJsonError
+        SerdeJsonError,
+        OAUTH2ApiError
     }
 }

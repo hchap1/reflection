@@ -7,6 +7,11 @@ const URL: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 const GRANT_TYPE: &str = "authorization_code";
 
 #[derive(Clone, Debug)]
+pub enum OAUTH2ApiError {
+    POSTFailed
+}
+
+#[derive(Clone, Debug)]
 pub struct TokenSet {
     access_token: String,
     refresh_token: String
@@ -55,10 +60,16 @@ pub async fn post_oauth2_code(code: String, verifier: String) -> Res<TokenSet> {
         .send()
         .await?;
 
+    // If the POST request failed, avoid serde as it will panic.
+    if !res.status().is_success() {
+        return Err(OAUTH2ApiError::POSTFailed.into());
+    }
+
+    // Attempt to retrieve body of the response and parse with serde.
     let text = res.text().await?;
-    println!("text: {text}");
     let response: Response = serde_json::from_str(&text)?;
 
+    // Retrieve important part of the tokenset.
     Ok(TokenSet {
         access_token: response.access_token,
         refresh_token: response.refresh_token
