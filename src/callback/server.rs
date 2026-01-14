@@ -5,6 +5,8 @@ use http_body_util::Full;
 use hyper::{Request, Response, body::Bytes, server::conn::http1};
 use hyper_util::rt::{TokioIo, TokioTimer};
 use rand::{Rng, distr::Alphanumeric, rng};
+use sha2::Sha256;
+use sha2::Digest;
 use tokio::net::TcpListener;
 use async_channel::unbounded;
 
@@ -42,7 +44,9 @@ pub fn generate_pkce() -> (String, String) {
         .collect();
 
     // Perform a SHA256 hash on the verifier.
-    let hashed = sha256::digest(verifier.as_bytes());
+    let mut hasher = Sha256::new();
+    hasher.update(verifier.as_bytes());
+    let hashed = hasher.finalize();
     let challenge = BASE64_URL_SAFE_NO_PAD.encode(hashed);
 
     (verifier, challenge)
