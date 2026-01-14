@@ -111,14 +111,23 @@ pub async fn run_server(csrf: String) -> Res<String> {
 
                     // Parse the request
                     let res = process_callback(req, csrf_instance);
+                    let success = res.is_ok();
 
                     // Pipe the request out of this async closure context.
-                    let _ = sender.send(res).await;
+                    let pipe_success = sender.send(res).await.is_ok();
 
                     // Signal the termination of the thread by breaking tokio::select.
-                    let _ = shutdown_sender.send(()).await;
+                    let shutdown_success = shutdown_sender.send(()).await.is_ok();
 
-                    Ok::<_, Infallible>(Response::new(Full::new(Bytes::from("Received code. Close this tab."))))
+                    if success && pipe_success && shutdown_success {
+                        Ok::<_, Infallible>(Response::new(Full::new(Bytes::from("Received code. Close this tab."))))
+                    } else {
+                        Ok::<_, Infallible>(Response::new(Full::new(Bytes::from("
+                                Critical Error.
+                                Unable to ascertain the code, OR failed to extract code from async context OR failed to signal shutdown of code thread.
+                                Recommended action: Restart authentication process.
+                        "))))
+                    }
                 }
             })
         );
