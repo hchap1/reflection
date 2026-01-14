@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
+use crate::callback::server::ServerError;
+
 pub type Res<T> = Result<T, Error>;
 type StdIoError = std::io::Error;
+type HyperError = hyper::Error;
 
 macro_rules! error_enum {
     (
@@ -30,6 +33,8 @@ macro_rules! error_enum {
 
 error_enum! {
     pub enum Error {
-        StdIoError
+        StdIoError,
+        ServerError,
+        HyperError
     }
 }
