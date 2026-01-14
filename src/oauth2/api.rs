@@ -13,6 +13,16 @@ pub struct TokenSet {
     refresh_token: String
 }
 
+impl TokenSet {
+    pub fn get_access_token(&self) -> String {
+        self.access_token.clone()
+    }
+
+    pub fn get_refresh_token(&self) -> String {
+        self.refresh_token.clone()
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 struct Response {
     access_token: String,
