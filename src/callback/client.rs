@@ -5,7 +5,7 @@ const URL: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/authoriz
 
 pub const CLIENT_ID: &str = "9309988c-aa51-4b83-a387-b3613cc503c8";
 const RESPONSE_TYPE: &str = "code";
-const REDIRECT_URL: &str = "http://localhost:3000";
+pub const REDIRECT_URL: &str = "http://localhost:3000";
 const RESPONSE_MODE: &str = "query";
 pub const SCOPE: &str = "openid profile offline_access Files.Read";
 const CODE_CHALLENGE_METHOD: &str = "S256";

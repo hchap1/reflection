@@ -1,11 +1,10 @@
 use reqwest::Client;
 use serde::{Serialize, Deserialize};
 
-use crate::{callback::client::{CLIENT_ID, SCOPE}, error::Res};
+use crate::{callback::client::{CLIENT_ID, REDIRECT_URL, SCOPE}, error::Res};
 
 const URL: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 const GRANT_TYPE: &str = "authorization_code";
-const REDIRECT_URI: &str = "?";
 
 #[derive(Clone, Debug)]
 pub struct TokenSet {
@@ -40,7 +39,9 @@ pub async fn post_oauth2_code(code: String, verifier: String) -> Res<TokenSet> {
 
         // The temporary access token as provided by the OAUTH2 callback to localhost:3000.
         ("code", &code),
-        ("redirect_uri", REDIRECT_URI),
+
+        // Same as the GET request from the browser, Microsoft uses this as an extra layer of security.
+        ("redirect_uri", REDIRECT_URL),
 
         // The verifier is the raw PKCE string that was hashed when the user was redirected to the OAUTH2 page in the browser.
         // This code allows the request to be validated without the client secret.
@@ -55,6 +56,7 @@ pub async fn post_oauth2_code(code: String, verifier: String) -> Res<TokenSet> {
         .await?;
 
     let text = res.text().await?;
+    println!("text: {text}");
     let response: Response = serde_json::from_str(&text)?;
 
     Ok(TokenSet {
