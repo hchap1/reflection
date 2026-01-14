@@ -2,6 +2,7 @@ use std::sync::Arc;
 use async_channel::SendError;
 use async_channel::RecvError;
 use async_channel::TryRecvError;
+use rand::rand_core::OsError;
 
 use crate::callback::server::ServerError;
 
@@ -66,6 +67,7 @@ error_enum! {
         StdIoError,
         ServerError,
         HyperError,
-        ChannelError
+        ChannelError,
+        OsError
     }
 }

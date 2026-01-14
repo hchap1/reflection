@@ -9,3 +9,4 @@ tokio = { version = "*", features = ["full"] }
 http-body-util = "*"
 hyper-util = { version = "*", features = ["full"] }
 async-channel = "2.5.0"
+rand = "0.9.2"

@@ -3,41 +3,83 @@ use hyper::service::service_fn;
 use http_body_util::Full;
 use hyper::{Request, Response, body::Bytes, server::conn::http1};
 use hyper_util::rt::{TokioIo, TokioTimer};
+use rand::{Rng, rng};
 use tokio::net::TcpListener;
 use async_channel::unbounded;
 
 #[derive(Clone, Debug)]
 pub enum ServerError {
-    NoQueryOnCallback
+    NoQueryOnCallback,
+    MalformedCallback,
+    MalformedCSRF,
+    InvalidCSRF
 }
 
 use crate::error::{ChannelError, Res};
 
-pub fn process_callback(request: Request<impl hyper::body::Body>) -> Res<()> {
-    let query = request.uri().query().ok_or(ServerError::NoQueryOnCallback)?;
-    println!("QUERY: {query}");
-    Ok(())
+const CSRF_CHARSET: &[u8] =
+    b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
+      abcdefghijklmnopqrstuvwxyz\
+      0123456789";
+
+pub fn generate_csrf() -> String {
+    let mut rng = rng();
+    (0..32)
+        .map(|_| {
+            let id = rng.random_range(0..CSRF_CHARSET.len());
+            CSRF_CHARSET[id] as char
+        }).collect()
 }
 
-pub async fn run_server() -> Res<()> {
+pub fn process_callback(request: Request<impl hyper::body::Body>, csrf: String) -> Res<String> {
+    let query = request.uri().query().ok_or(ServerError::NoQueryOnCallback)?;
+    let mut parts = query.split("&");
+
+    let code_substr = parts.next().ok_or(ServerError::MalformedCallback)?;
+    let state_substr = parts.next().ok_or(ServerError::MalformedCSRF)?;
+
+    let code = code_substr.strip_prefix("code=").ok_or(ServerError::MalformedCallback)?.to_string();
+    let returned_csrf = state_substr.strip_prefix("state=").ok_or(ServerError::MalformedCSRF)?.to_string();
+
+    if returned_csrf == csrf {
+        Ok(code)
+    } else {
+        Err(ServerError::InvalidCSRF.into())
+    }
+}
+
+pub async fn run_server(csrf: String) -> Res<String> {
     let addr: SocketAddr = SocketAddr::new(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 3000u16);
     let listener = TcpListener::bind(addr).await?;
 
     let (tcp, _) = listener.accept().await?;
     let io = TokioIo::new(tcp);
     let (sender, receiver) = unbounded();
+    let (shutdown_sender, shutdown_receiver) = unbounded::<()>();
 
-    http1::Builder::new()
+    let connection = http1::Builder::new()
         .timer(TokioTimer::new())
         .serve_connection(
             io,
-            service_fn(
+            service_fn({
                 async |req| {
-                    let res = process_callback(req);
+                    let csrf_instance = csrf.clone();
+                    let res = process_callback(req, csrf_instance);
                     let _ = sender.send(res).await;
+                    let _ = shutdown_sender.send(()).await;
                     Ok::<_, Infallible>(Response::new(Full::new(Bytes::from("Received code. Close this tab."))))
+                }
             })
-        ).await?;
+        );
+
+
+    tokio::select! {
+        result = connection => {
+            result?;
+        }
+
+        _ = shutdown_receiver.recv() => {}
+    }
 
     match receiver.try_recv() {
         Ok(code) => code,
