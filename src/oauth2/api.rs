@@ -32,12 +32,18 @@ struct Response {
     token_type: String
 }
 
+/// Take the temporary auth code and PKCE verifier string to produce a permanent tokenset.
 pub async fn post_oauth2_code(code: String, verifier: String) -> Res<TokenSet> {
     let params = [
         ("client_id", CLIENT_ID),
         ("grant_type", GRANT_TYPE),
+
+        // The temporary access token as provided by the OAUTH2 callback to localhost:3000.
         ("code", &code),
         ("redirect_uri", REDIRECT_URI),
+
+        // The verifier is the raw PKCE string that was hashed when the user was redirected to the OAUTH2 page in the browser.
+        // This code allows the request to be validated without the client secret.
         ("code_verifier", &verifier),
         ("scope", SCOPE)
     ];

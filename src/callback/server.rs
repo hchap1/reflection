@@ -25,6 +25,7 @@ const CSRF_CHARSET: &[u8] =
       abcdefghijklmnopqrstuvwxyz\
       0123456789";
 
+/// Generate a random string that is echoed back throughout OAUTH2 processes to validate authenticity of foreign servers. If this code is different, terminate.
 pub fn generate_csrf() -> String {
     let mut rng = rng();
     (0..32)
@@ -52,6 +53,7 @@ pub fn generate_pkce() -> (String, String) {
     (verifier, challenge)
 }
 
+/// Simple string parse to collect the callback CODE and STATE (CSRF) from the POST to localhost.
 pub fn process_callback(request: Request<impl hyper::body::Body>, csrf: String) -> Res<String> {
     let query = request.uri().query().ok_or(ServerError::NoQueryOnCallback)?;
     let mut parts = query.split("&");
