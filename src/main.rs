@@ -5,6 +5,7 @@ use crate::callback::{client::launch_oauth2, server::{generate_csrf, generate_pk
 mod callback;
 mod error;
 mod util;
+mod oauth2;
 
 #[tokio::main]
 async fn main() {

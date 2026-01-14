@@ -3,11 +3,11 @@ use open::that;
 
 const URL: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
 
-const CLIENT_ID: &str = "9309988c-aa51-4b83-a387-b3613cc503c8";
+pub const CLIENT_ID: &str = "9309988c-aa51-4b83-a387-b3613cc503c8";
 const RESPONSE_TYPE: &str = "code";
 const REDIRECT_URL: &str = "http://localhost:3000";
 const RESPONSE_MODE: &str = "query";
-const SCOPE: &str = "openid profile offline_access Files.Read";
+pub const SCOPE: &str = "openid profile offline_access Files.Read";
 const CODE_CHALLENGE_METHOD: &str = "S256";
 
 /// Given the csrf state and the pkce challenge, load the OAUTH2 page in users default web browser.

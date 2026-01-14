@@ -10,6 +10,8 @@ use crate::callback::server::ServerError;
 pub type Res<T> = Result<T, Error>;
 type StdIoError = std::io::Error;
 type HyperError = hyper::Error;
+type ReqwestError = reqwest::Error;
+type SerdeJsonError = serde_json::Error;
 
 macro_rules! error_enum {
     (
@@ -70,6 +72,8 @@ error_enum! {
         HyperError,
         ChannelError,
         OsError,
-        JoinError
+        JoinError,
+        ReqwestError,
+        SerdeJsonError
     }
 }
