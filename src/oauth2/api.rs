@@ -13,25 +13,15 @@ pub enum OAUTH2ApiError {
 
 #[derive(Clone, Debug)]
 pub struct TokenSet {
-    access_token: String,
-    refresh_token: String
-}
-
-impl TokenSet {
-    pub fn get_access_token(&self) -> String {
-        self.access_token.clone()
-    }
-
-    pub fn get_refresh_token(&self) -> String {
-        self.refresh_token.clone()
-    }
+    pub access_token: String,
+    pub refresh_token: String
 }
 
 #[derive(Serialize, Deserialize)]
-struct Response {
-    access_token: String,
+pub struct Response {
+    pub access_token: String,
     expires_in: usize,
-    refresh_token: String,
+    pub refresh_token: String,
     scope: String,
     token_type: String
 }

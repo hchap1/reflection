@@ -9,6 +9,10 @@ mod oauth2;
 
 #[tokio::main]
 async fn main() {
+
+    // TODO - Store token in db, refresh on init (function to retrieve from DB and also refresh it and claim access token)
+    // TODO - Work on directory access
+
     let csrf = generate_csrf();
     let (pkce_verifier, pkce_challenge) = generate_pkce();
 
@@ -16,5 +20,5 @@ async fn main() {
     let temporary_code = run_server(csrf).await.unwrap();
 
     let tokenset = api::post_oauth2_code(temporary_code, pkce_verifier).await.unwrap();
-    println!("TOKEN: {} REFRESH: {}", tokenset.get_access_token(), tokenset.get_refresh_token());
+    println!("TOKEN: {} REFRESH: {}", tokenset.access_token, tokenset.refresh_token);
 }
