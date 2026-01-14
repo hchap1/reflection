@@ -2,6 +2,7 @@
 
 mod callback;
 mod error;
+mod util;
 
 fn main() {
     println!("Hello, world!");
