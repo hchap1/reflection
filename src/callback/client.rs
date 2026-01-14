@@ -1,5 +1,7 @@
 use winit::{application::ApplicationHandler, event::WindowEvent, event_loop::{ActiveEventLoop, EventLoop}, window::{Window, WindowId}};
 use wry::{WebView, WebViewBuilder};
+#[cfg(target_os = "linux")]
+use winit::platform::x11::EventLoopBuilderExtX11;
 
 use crate::error::Res;
 
@@ -31,7 +33,16 @@ impl ApplicationHandler for OAuthWindow {
 }
 
 pub fn launch_oauth_window() -> Res<()> {
-    let event_loop = EventLoop::new()?;
+
+    #[cfg(target_os = "linux")]
+    let event_loop = EventLoop::builder()
+        .with_x11()
+        .build()?;
+
+    #[cfg(not(target_os = "linux"))]
+    let event_loop = EventLoop::builder()
+        .build()?;
+
     event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
 
     let mut window = OAuthWindow::default();
