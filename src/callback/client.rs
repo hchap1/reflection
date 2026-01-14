@@ -1,52 +1,22 @@
-use winit::{application::ApplicationHandler, event::WindowEvent, event_loop::{ActiveEventLoop, EventLoop}, window::{Window, WindowId}};
-use wry::{WebView, WebViewBuilder};
-#[cfg(target_os = "linux")]
-use winit::platform::x11::EventLoopBuilderExtX11;
-
 use crate::error::Res;
+use open::that;
 
-#[derive(Default)]
-pub struct OAuthWindow {
-    window: Option<Window>,
-    webview: Option<WebView>
-}
+const URL: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
 
-impl ApplicationHandler for OAuthWindow {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let window = event_loop.create_window(Window::default_attributes()).unwrap();
-        let webview = WebViewBuilder::new()
-            .with_url("https://youtube.com")
-            .build(&window)
-            .unwrap();
+const CLIENT_ID: &str = "9309988c-aa51-4b83-a387-b3613cc503c8";
+const RESPONSE_TYPE: &str = "code";
+const REDIRECT_URL: &str = "http://localhost:3000";
+const RESPONSE_MODE: &str = "query";
+const SCOPE: &str = "openid profile offline_access Files.Read";
+const CODE_CHALLENGE_METHOD: &str = "S256";
 
-        self.window = Some(window);
-        self.webview = Some(webview);
-    }
-
-    // Ignore window events.
-    fn window_event(
-            &mut self,
-            _event_loop: &ActiveEventLoop,
-            _window_id: WindowId,
-            _event: WindowEvent
-        ) {}
-}
-
-pub fn launch_oauth_window() -> Res<()> {
-
-    #[cfg(target_os = "linux")]
-    let event_loop = EventLoop::builder()
-        .with_x11()
-        .build()?;
-
-    #[cfg(not(target_os = "linux"))]
-    let event_loop = EventLoop::builder()
-        .build()?;
-
-    event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
-
-    let mut window = OAuthWindow::default();
-    event_loop.run_app(&mut window)?;
-
+/// Given the csrf state and the pkce challenge, load the OAUTH2 page in users default web browser.
+pub async fn launch_oauth2(csrf: String, pkce: String) -> Res<()> {
+    that(
+        format!(
+            "{URL}?client_id={}&response_type={}&redirect_uri={}&response_mode={}&scope={}&state={}&code_challenge={}&code_challenge_method={}",
+            CLIENT_ID, RESPONSE_TYPE, REDIRECT_URL, RESPONSE_MODE, SCOPE, csrf, pkce, CODE_CHALLENGE_METHOD
+        )
+    )?;
     Ok(())
 }

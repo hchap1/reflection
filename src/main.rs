@@ -4,7 +4,8 @@ mod callback;
 mod error;
 mod util;
 
-fn main() {
-    let ret = callback::client::launch_oauth_window();
+#[tokio::main]
+async fn main() {
+    let ret = callback::client::launch_oauth2();
     println!("{ret:?}");
 }

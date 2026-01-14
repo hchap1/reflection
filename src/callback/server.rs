@@ -1,9 +1,10 @@
 use std::{convert::Infallible, net::{Ipv4Addr, SocketAddr}};
+use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
 use hyper::service::service_fn;
 use http_body_util::Full;
 use hyper::{Request, Response, body::Bytes, server::conn::http1};
 use hyper_util::rt::{TokioIo, TokioTimer};
-use rand::{Rng, rng};
+use rand::{Rng, distr::Alphanumeric, rng};
 use tokio::net::TcpListener;
 use async_channel::unbounded;
 
@@ -29,6 +30,22 @@ pub fn generate_csrf() -> String {
             let id = rng.random_range(0..CSRF_CHARSET.len());
             CSRF_CHARSET[id] as char
         }).collect()
+}
+
+/// Create dual PKCE codes.
+/// The verifier is stored in memory and the challenge is sent in the URL. Later, the client can be verified by checking the hash of verifier against the challenge.
+pub fn generate_pkce() -> (String, String) {
+    let verifier: String = rng()
+        .sample_iter(&Alphanumeric)
+        .take(64)
+        .map(char::from)
+        .collect();
+
+    // Perform a SHA256 hash on the verifier.
+    let hashed = sha256::digest(verifier.as_bytes());
+    let challenge = BASE64_URL_SAFE_NO_PAD.encode(hashed);
+
+    (verifier, challenge)
 }
 
 pub fn process_callback(request: Request<impl hyper::body::Body>, csrf: String) -> Res<String> {
