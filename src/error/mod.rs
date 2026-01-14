@@ -3,6 +3,8 @@ use async_channel::SendError;
 use async_channel::RecvError;
 use async_channel::TryRecvError;
 use rand::rand_core::OsError;
+use tokio::task::JoinError;
+use winit::error::EventLoopError;
 
 use crate::callback::server::ServerError;
 
@@ -68,6 +70,8 @@ error_enum! {
         ServerError,
         HyperError,
         ChannelError,
-        OsError
+        OsError,
+        EventLoopError,
+        JoinError
     }
 }

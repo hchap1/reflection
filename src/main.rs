@@ -8,8 +8,5 @@ mod util;
 
 #[tokio::main]
 async fn main() {
-    let csrf = generate_csrf();
-    println!("{csrf}");
-    let ret = callback::server::run_server(csrf).await;
-    println!("{ret:?}");
+    
 }
