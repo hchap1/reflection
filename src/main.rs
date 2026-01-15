@@ -6,6 +6,7 @@ mod callback;
 mod error;
 mod util;
 mod oauth2;
+mod database;
 
 #[tokio::main]
 async fn main() {
