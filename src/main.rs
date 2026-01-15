@@ -31,7 +31,8 @@ async fn main() -> Res<()> {
             println!("Aquired access token: {}", tokenset.access_token);
             tokenset
         },
-        Err(_) => {
+        Err(e) => {
+            println!("Failed to retrieve token from the dataase: {e:?}");
             println!("Generating CSRF and PKCE...");
             let csrf = generate_csrf();
             let (pkce_verifier, pkce_challenge) = generate_pkce();

@@ -12,5 +12,5 @@ pub const INSERT_TOKEN: &str = "
 ";
 
 pub const SELECT_TOKEN: &str = "
-    SELECT (token, expiration) FROM Tokens ORDER BY id DESC LIMIT 1;
+    SELECT token, expiration FROM Tokens ORDER BY id DESC LIMIT 1;
 ";
