@@ -8,6 +8,7 @@ use tokio::task::JoinError;
 
 use crate::callback::server::ServerError;
 use crate::database::interface::DatabaseInterfaceError;
+use crate::directories::create::DirectoryError;
 use crate::oauth2::api::OAUTH2ApiError;
 
 pub type Res<T> = Result<T, Error>;
@@ -82,6 +83,7 @@ error_enum! {
         OAUTH2ApiError,
         DatabaseError,
         SystemTimeError,
-        DatabaseInterfaceError
+        DatabaseInterfaceError,
+        DirectoryError
     }
 }

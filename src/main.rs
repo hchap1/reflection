@@ -7,12 +7,10 @@ mod error;
 mod util;
 mod oauth2;
 mod database;
+mod directories;
 
 #[tokio::main]
 async fn main() {
-
-    // TODO - Store token in db, refresh on init (function to retrieve from DB and also refresh it and claim access token)
-    // TODO - Work on directory access
 
     let csrf = generate_csrf();
     let (pkce_verifier, pkce_challenge) = generate_pkce();

@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use reqwest::Client;
 use serde::{Serialize, Deserialize};
 
@@ -14,13 +16,14 @@ pub enum OAUTH2ApiError {
 #[derive(Clone, Debug)]
 pub struct TokenSet {
     pub access_token: String,
-    pub refresh_token: String
+    pub refresh_token: String,
+    pub absolute_expiration: usize
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct Response {
     pub access_token: String,
-    expires_in: usize,
+    pub expires_in: usize,
     pub refresh_token: String,
     scope: String,
     token_type: String
@@ -59,9 +62,17 @@ pub async fn post_oauth2_code(code: String, verifier: String) -> Res<TokenSet> {
     let text = res.text().await?;
     let response: Response = serde_json::from_str(&text)?;
 
+
+    let expiration = SystemTime::now()
+        .duration_since(UNIX_EPOCH)?
+        .as_secs()
+        as usize
+        + response.expires_in;
+
     // Retrieve important part of the tokenset.
     Ok(TokenSet {
         access_token: response.access_token,
-        refresh_token: response.refresh_token
+        refresh_token: response.refresh_token,
+        absolute_expiration: expiration
     })
 }

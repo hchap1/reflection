@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use reqwest::Client;
 
 use crate::{callback::client::{CLIENT_ID, REDIRECT_URL, SCOPE}, error::Res, oauth2::api::{OAUTH2ApiError, Response, TokenSet}};
@@ -34,9 +36,16 @@ pub async fn refresh_tokenset(tokenset: TokenSet) -> Res<TokenSet> {
     let text = res.text().await?;
     let response: Response = serde_json::from_str(&text)?;
 
+    let expiration = SystemTime::now()
+        .duration_since(UNIX_EPOCH)?
+        .as_secs()
+        as usize
+        + response.expires_in;
+
     // Retrieve important part of the tokenset.
     Ok(TokenSet {
         access_token: response.access_token,
-        refresh_token: response.refresh_token
+        refresh_token: response.refresh_token,
+        absolute_expiration: expiration
     })
 }

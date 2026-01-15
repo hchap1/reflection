@@ -16,11 +16,6 @@ pub fn create_tables(database: DataLink) -> Res<()> {
 
 /// Insert the latest token into the database along with expieration seconds.
 pub async fn insert_token(database: DataLink, refresh_token: String, expiration: usize) -> Res<()> {
-    let expiration = SystemTime::now()
-        .duration_since(UNIX_EPOCH)?
-        .as_secs()
-        as usize
-        + expiration;
     database.insert(sql::INSERT_TOKEN, DatabaseParams::new(vec![
         DatabaseParam::Usize(expiration),
         DatabaseParam::String(refresh_token)
