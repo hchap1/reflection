@@ -2,7 +2,7 @@ pub const CREATE_TOKEN_TABLE: &str = "
     CREATE TABLE IF NOT EXISTS Tokens (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         expiration INTEGER NOT NULL,
-        token: TEXT NOT NULL
+        token TEXT NOT NULL
     );
 ";
 

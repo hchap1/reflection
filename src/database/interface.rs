@@ -1,6 +1,5 @@
 use crate::{database::sql, error::Res};
 use rusqlite_async::database::{DataLink, DatabaseParam, DatabaseParams};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Debug)]
 pub enum DatabaseInterfaceError {
