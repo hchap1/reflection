@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::SystemTimeError;
 use async_channel::SendError;
 use async_channel::RecvError;
 use async_channel::TryRecvError;
@@ -6,6 +7,7 @@ use rand::rand_core::OsError;
 use tokio::task::JoinError;
 
 use crate::callback::server::ServerError;
+use crate::database::interface::DatabaseInterfaceError;
 use crate::oauth2::api::OAUTH2ApiError;
 
 pub type Res<T> = Result<T, Error>;
@@ -13,6 +15,7 @@ type StdIoError = std::io::Error;
 type HyperError = hyper::Error;
 type ReqwestError = reqwest::Error;
 type SerdeJsonError = serde_json::Error;
+type DatabaseError = rusqlite_async::error::Error;
 
 macro_rules! error_enum {
     (
@@ -76,6 +79,9 @@ error_enum! {
         JoinError,
         ReqwestError,
         SerdeJsonError,
-        OAUTH2ApiError
+        OAUTH2ApiError,
+        DatabaseError,
+        SystemTimeError,
+        DatabaseInterfaceError
     }
 }
