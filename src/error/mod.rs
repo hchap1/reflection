@@ -6,10 +6,11 @@ use async_channel::TryRecvError;
 use rand::rand_core::OsError;
 use tokio::task::JoinError;
 
-use crate::callback::server::ServerError;
+use crate::authentication::callback::server::ServerError;
 use crate::database::interface::DatabaseInterfaceError;
 use crate::directories::create::DirectoryError;
-use crate::oauth2::api::OAUTH2ApiError;
+use crate::authentication::oauth2::api::OAUTH2ApiError;
+use crate::onedrive::api::OnedriveError;
 
 pub type Res<T> = Result<T, Error>;
 type StdIoError = std::io::Error;
@@ -84,6 +85,7 @@ error_enum! {
         DatabaseError,
         SystemTimeError,
         DatabaseInterfaceError,
-        DirectoryError
+        DirectoryError,
+        OnedriveError
     }
 }

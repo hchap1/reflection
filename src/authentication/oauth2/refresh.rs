@@ -1,49 +1,23 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use reqwest::Client;
-use serde::{Serialize, Deserialize};
 
-use crate::{callback::client::{CLIENT_ID, REDIRECT_URL, SCOPE}, error::Res};
+use crate::{authentication::callback::client::{CLIENT_ID, REDIRECT_URL, SCOPE}, error::Res, authentication::oauth2::api::{OAUTH2ApiError, Response, TokenSet}};
 
 const URL: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
-const GRANT_TYPE: &str = "authorization_code";
+const GRANT_TYPE: &str = "refresh_token";
 
-#[derive(Clone, Debug)]
-pub enum OAUTH2ApiError {
-    POSTFailed
-}
-
-#[derive(Clone, Debug)]
-pub struct TokenSet {
-    pub access_token: String,
-    pub refresh_token: String,
-    pub absolute_expiration: usize
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Response {
-    pub access_token: String,
-    pub expires_in: usize,
-    pub refresh_token: String,
-    scope: String,
-    token_type: String
-}
-
-/// Take the temporary auth code and PKCE verifier string to produce a permanent tokenset.
-pub async fn post_oauth2_code(code: String, verifier: String) -> Res<TokenSet> {
+/// Use a refresh token to retrieve a new access token and a new refresh token
+pub async fn refresh_tokenset(refresh_token: String) -> Res<TokenSet> {
     let params = [
         ("client_id", CLIENT_ID),
         ("grant_type", GRANT_TYPE),
 
-        // The temporary access token as provided by the OAUTH2 callback to localhost:3000.
-        ("code", &code),
+        // The long-lived refresh token as provided by either this function or the original authentication.
+        ("refresh_token", &refresh_token),
 
         // Same as the GET request from the browser, Microsoft uses this as an extra layer of security.
         ("redirect_uri", REDIRECT_URL),
-
-        // The verifier is the raw PKCE string that was hashed when the user was redirected to the OAUTH2 page in the browser.
-        // This code allows the request to be validated without the client secret.
-        ("code_verifier", &verifier),
         ("scope", SCOPE)
     ];
 
@@ -61,7 +35,6 @@ pub async fn post_oauth2_code(code: String, verifier: String) -> Res<TokenSet> {
     // Attempt to retrieve body of the response and parse with serde.
     let text = res.text().await?;
     let response: Response = serde_json::from_str(&text)?;
-
 
     let expiration = SystemTime::now()
         .duration_since(UNIX_EPOCH)?

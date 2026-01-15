@@ -1,15 +1,24 @@
 #![allow(clippy::enum_variant_names)]
 
 use rusqlite_async::database::Database;
+use error::Res;
+use directories::create::Directories;
+use authentication::oauth2::hashcodes::generate_csrf;
+use authentication::oauth2::hashcodes::generate_pkce;
+use authentication::oauth2::api::post_oauth2_code;
+use authentication::oauth2::refresh::refresh_tokenset;
+use authentication::callback::client::launch_oauth2;
+use authentication::callback::server::run_server;
 
-use crate::{callback::{client::launch_oauth2, server::{generate_csrf, generate_pkce, run_server}}, directories::create::Directories, error::Res, oauth2::api};
+use crate::onedrive::api::AccessToken;
 
-mod callback;
 mod error;
 mod util;
-mod oauth2;
 mod database;
 mod directories;
+mod authentication;
+
+mod onedrive;
 
 #[tokio::main]
 async fn main() -> Res<()> {
@@ -27,7 +36,7 @@ async fn main() -> Res<()> {
     let tokenset = match database::interface::retrieve_token(database.derive()).await {
         Ok((token, _)) => {
             println!("Aquired refresh token from database. Aquiring access token...");
-            let tokenset = oauth2::refresh::refresh_tokenset(token).await?;
+            let tokenset = refresh_tokenset(token).await?;
             println!("Aquired access token: {}", tokenset.access_token);
             tokenset
         },
@@ -47,7 +56,7 @@ async fn main() -> Res<()> {
             println!("Callback server returned code {temporary_code}");
 
             println!("Posting temporary_code to verification server.");
-            let tokenset = api::post_oauth2_code(temporary_code, pkce_verifier).await?;
+            let tokenset = post_oauth2_code(temporary_code, pkce_verifier).await?;
             println!("Received access token: {} and refresh token: {}", tokenset.access_token, tokenset.refresh_token);
             tokenset
         }
@@ -56,6 +65,9 @@ async fn main() -> Res<()> {
     println!("Writing new refresh token into database...");
     database::interface::insert_token(database.derive(), tokenset.refresh_token, tokenset.absolute_expiration).await?;
     println!("New refresh token written.");
+
+    let res = onedrive::api::get_drives(AccessToken::new(tokenset.access_token)).await;
+    println!("{res:?}");
 
     Ok(())
 }
