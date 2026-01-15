@@ -8,13 +8,13 @@ const URL: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 const GRANT_TYPE: &str = "refresh_token";
 
 /// Use a refresh token to retrieve a new access token and a new refresh token
-pub async fn refresh_tokenset(tokenset: TokenSet) -> Res<TokenSet> {
+pub async fn refresh_tokenset(refresh_token: String) -> Res<TokenSet> {
     let params = [
         ("client_id", CLIENT_ID),
         ("grant_type", GRANT_TYPE),
 
         // The long-lived refresh token as provided by either this function or the original authentication.
-        ("refresh_token", &tokenset.refresh_token),
+        ("refresh_token", &refresh_token),
 
         // Same as the GET request from the browser, Microsoft uses this as an extra layer of security.
         ("redirect_uri", REDIRECT_URL),
