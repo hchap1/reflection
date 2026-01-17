@@ -11,7 +11,7 @@ use authentication::callback::client::launch_oauth2;
 use authentication::callback::server::run_server;
 
 use crate::onedrive::api::AccessToken;
-use crate::onedrive::get_drives::get_drives;
+use crate::onedrive::get_drive::get_drives;
 
 mod error;
 mod util;
@@ -68,16 +68,9 @@ async fn main() -> Res<()> {
     println!("New refresh token written.");
 
     println!("Requesting drive details for user...");
-    let drives = get_drives(AccessToken::new(tokenset.access_token)).await?;
-
-    println!("\nRetrieved drives:\n");
-
-    for drive in &drives {
-        println!("\n");
-        println!("NAME: {}", drive.name);
-        println!("ID: {}", drive.id);
-        println!("URL: {}", drive.url);
-    }
+    let drive = get_drives(AccessToken::new(tokenset.access_token)).await?;
+    println!("\nRetrieved drive:\n");
+    println!("{}, {:?}, {}", drive.id, drive.owner, drive.drive_type);
 
     println!("ENDING\n\n");
 
