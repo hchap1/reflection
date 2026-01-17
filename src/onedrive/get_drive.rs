@@ -34,6 +34,6 @@ pub struct User {
     pub email: Option<String>
 }
 
-pub async fn get_drives(access_token: AccessToken) -> Res<DriveData> {
+pub async fn get_drive(access_token: AccessToken) -> Res<DriveData> {
     make_request::<DriveData>(URL, access_token.get().to_string(), vec![]).await
 }
