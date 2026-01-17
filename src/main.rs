@@ -13,6 +13,7 @@ use authentication::callback::server::run_server;
 use crate::onedrive::api::AccessToken;
 use crate::onedrive::get_albums::get_albums;
 use crate::onedrive::get_drive::get_drive;
+use crate::onedrive::get_me::get_me;
 
 mod error;
 mod util;
@@ -45,12 +46,8 @@ async fn main() -> Res<()> {
 
     database::interface::insert_token(database.derive(), tokenset.refresh_token, tokenset.absolute_expiration).await?;
 
-    let drive = get_drive(AccessToken::new(tokenset.access_token.clone())).await?;
-
-    println!("Retrieved drive:");
-    println!("{}, {:?}, {}", drive.id, drive.owner, drive.drive_type);
-
-    let albums = get_albums(AccessToken::new(tokenset.access_token)).await?;
+    let me = get_me(AccessToken::new(tokenset.access_token.clone())).await?;
+    let albums = get_albums(AccessToken::new(tokenset.access_token), me.id).await?;
 
     Ok(())
 }
