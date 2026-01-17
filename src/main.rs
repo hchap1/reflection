@@ -12,19 +12,20 @@ use authentication::callback::server::run_server;
 
 use crate::onedrive::api::AccessToken;
 use crate::onedrive::get_albums::get_albums;
-use crate::onedrive::get_drive::get_drive;
-use crate::onedrive::get_me::get_me;
 
 mod error;
 mod util;
 mod database;
 mod directories;
 mod authentication;
-
 mod onedrive;
+
+use std::env;
 
 #[tokio::main]
 async fn main() -> Res<()> {
+
+    let url = env::args().nth(1).expect("Provide ALBUM URL for testing.");
 
     let directories = Directories::create_or_load()?;
     let (database, _) = Database::new(directories.root.clone());
@@ -46,8 +47,7 @@ async fn main() -> Res<()> {
 
     database::interface::insert_token(database.derive(), tokenset.refresh_token, tokenset.absolute_expiration).await?;
 
-    let me = get_me(AccessToken::new(tokenset.access_token.clone())).await?;
-    let albums = get_albums(AccessToken::new(tokenset.access_token), me.id).await?;
+    let albums = get_albums(AccessToken::new(tokenset.access_token), url).await?;
 
     Ok(())
 }
