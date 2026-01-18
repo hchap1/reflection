@@ -4,8 +4,8 @@ use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
 use crate::onedrive::api::{AccessToken, make_request};
 use crate::error::Res;
 
-const URL_START: &str = "https://graph.microsoft.com/v1.0/shares/u!";
-const URL_END: &str = "/driveItem";
+const READ_SHARE_URL: &str = "https://graph.microsoft.com/v1.0/shares/u!";
+const READ_CONTENTS_URL: &str = "https://graph.microsoft.com/v1.0/drives/";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AlbumDriveItem {
@@ -22,7 +22,22 @@ pub struct AlbumMetadata {
     item_count: usize
 }
 
-pub async fn get_albums(access_token: AccessToken, share_link: String) -> Res<AlbumDriveItem> {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AlbumContents {
+
+}
+
+pub async fn get_albums(access_token: AccessToken, drive_id: String, share_link: String) -> Res<AlbumContents> {
     let encoded_link = BASE64_URL_SAFE_NO_PAD.encode(share_link);
-    let drive_item = make_request::<AlbumDriveItem>(&format!("{URL_START}{encoded_link}{URL_END}"), access_token.get().to_string(), vec![]).await?;
+    let drive_item = make_request::<AlbumDriveItem>(&format!("{READ_SHARE_URL}{encoded_link}/driveItem"), access_token.get().to_string(), vec![]).await?;
+
+    make_request::<AlbumContents>(
+        &format!(
+            "{READ_CONTENTS_URL}{}/items/{}/children",
+            drive_id,
+            drive_item.id
+        ),
+        access_token.get().to_string(),
+        vec![]
+    ).await
 }
