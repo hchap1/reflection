@@ -22,7 +22,7 @@ pub async fn download_drive_item(
         tokio::fs::create_dir_all(&directory).await?;
     };
 
-    let file_path = directory.join(&album_id);
+    let file_path = directory.join(&photo_file.id);
     if file_path.exists() {
         return Ok(file_path);
     }
