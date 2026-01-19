@@ -10,6 +10,11 @@ use crate::onedrive::get_album_children::PhotoFile;
 
 const CONTENT_URL: &str = "https://graph.microsoft.com/v1.0/me/drive/items/";
 
+#[derive(Clone, Debug)]
+pub enum DownloadError {
+    CouldNotParseExtension
+}
+
 pub async fn download_drive_item(
     access_token: AccessToken,
     photo_file: PhotoFile,
@@ -22,7 +27,10 @@ pub async fn download_drive_item(
         tokio::fs::create_dir_all(&directory).await?;
     };
 
-    let file_path = directory.join(&photo_file.id);
+    let original_path = PathBuf::from(&photo_file.name);
+    let extension = original_path.extension().ok_or(DownloadError::CouldNotParseExtension)?;
+
+    let file_path = directory.join(&photo_file.id).with_extension(extension);
     if file_path.exists() {
         return Ok(file_path);
     }
