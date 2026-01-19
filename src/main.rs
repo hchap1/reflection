@@ -11,7 +11,8 @@ use authentication::callback::client::launch_oauth2;
 use authentication::callback::server::run_server;
 
 use crate::onedrive::api::AccessToken;
-use crate::onedrive::get_albums::get_albums;
+use crate::onedrive::download::download_drive_item;
+use crate::onedrive::get_album_children::get_album_children;
 use crate::onedrive::get_drive::get_drive;
 
 mod error;
@@ -49,7 +50,12 @@ async fn main() -> Res<()> {
     database::interface::insert_token(database.derive(), tokenset.refresh_token, tokenset.absolute_expiration).await?;
 
     let drive = get_drive(AccessToken::new(tokenset.access_token.clone())).await?;
-    let albums = get_albums(AccessToken::new(tokenset.access_token), drive.id, url).await?;
+    let (album, photos) = get_album_children(AccessToken::new(tokenset.access_token.clone()), drive.id, url).await?;
+    
+    for photo in photos {
+        let result = download_drive_item(AccessToken::new(tokenset.access_token.clone()), photo, directories.albums.clone(), album.id.clone()).await?;
+        println!("Created {result:?}");
+    }
 
     Ok(())
 }

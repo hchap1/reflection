@@ -12,17 +12,17 @@ const READ_CONTENTS_URL: &str = "https://graph.microsoft.com/v1.0/drives/";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AlbumDriveItem {
-    id: String,
-    name: String,
+    pub id: String,
+    pub name: String,
 
     #[serde(rename = "mediaAlbum")]
-    album_metadata: AlbumMetadata
+    pub album_metadata: AlbumMetadata
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AlbumMetadata {
     #[serde(rename = "albumItemCount")]
-    item_count: usize
+    pub item_count: usize
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
