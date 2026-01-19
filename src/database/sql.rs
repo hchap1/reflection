@@ -6,6 +6,39 @@ pub const CREATE_TOKEN_TABLE: &str = "
     );
 ";
 
+pub const CREATE_ALBUM_TABLE: &str = "
+    CREATE TABLE IF NOT EXISTS Albums (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        onedrive_id TEXT UNIQUE,
+        name TEXT NOT NULL
+    );
+";
+
+pub const CREATE_PHOTO_TABLE: &str = "
+    CREATE TABLE IF NOT EXISTS Photos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        onedrive_id TEXT UNIQUE,
+        name TEXT NOT NULL,
+        creation_date TEXT,
+        width INTEGER NOT NULL,
+        height INTEGER NOT NULL,
+        filesize INTEGER NOT NULL,
+        latitude FLOAT,
+        longitude FLOAT,
+        altitude FLOAT
+    );
+";
+
+pub const CREATE_ENTRY_TABLE: &str = "
+    CREATE TABLE IF NOT EXISTS Entries (
+        album_id INTEGER,
+        photo_id INTEGER,
+        PRIMARY KEY (album_id, photo_id),
+        FOREIGN KEY (album_id) REFERENCES Albums(id) ON DELETE CASCADE,
+        FOREIGN KEY (photo_id) REFERENCES Photos(id) ON DELETE CASCADE
+    );
+";
+
 pub const INSERT_TOKEN: &str = "
     INSERT INTO Tokens
     VALUES(null, ?, ?)
