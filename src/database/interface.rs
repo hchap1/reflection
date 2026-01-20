@@ -1,4 +1,4 @@
-use crate::{database::sql, error::Res, onedrive::get_album_children::{AlbumDriveItem, LocationData, PhotoFile}};
+use crate::{database::sql, error::Res, onedrive::get_album_children::{Album, LocationData, Photo}};
 use chrono::{DateTime, Utc};
 use rusqlite_async::database::{DataLink, DatabaseParam, DatabaseParams};
 
@@ -34,17 +34,18 @@ pub async fn retrieve_token(database: DataLink) -> Res<(String, usize)> {
 }
 
 /// Insert a new album record
-pub async fn insert_album(database: DataLink, album: AlbumDriveItem) -> Res<usize> {
+pub async fn insert_album(database: DataLink, album: Album) -> Res<usize> {
     let (row_id, _) = database.insert(sql::INSERT_ALBUM, DatabaseParams::new(vec![
-        DatabaseParam::String(album.id),
-        DatabaseParam::String(album.name)
+        DatabaseParam::String(album.onedrive_id),
+        DatabaseParam::String(album.name),
+        DatabaseParam::String(album.share_link)
     ])).await?;
 
     Ok(row_id)
 }
 
 /// Insert a new photo record
-pub async fn insert_photo(database: DataLink, photo: PhotoFile) -> Res<usize> {
+pub async fn insert_photo(database: DataLink, photo: Photo) -> Res<usize> {
 
     let time_string = match photo.creation_date {
         Some(date) => {
@@ -60,7 +61,7 @@ pub async fn insert_photo(database: DataLink, photo: PhotoFile) -> Res<usize> {
     };
 
     let (row_id, _) = database.insert(sql::INSERT_ALBUM, DatabaseParams::new(vec![
-        DatabaseParam::String(photo.id),
+        DatabaseParam::String(photo.onedrive_id),
         DatabaseParam::String(photo.name),
         DatabaseParam::String(time_string),
         DatabaseParam::Usize(photo.width),
@@ -84,7 +85,7 @@ pub async fn insert_entry(database: DataLink, album_id: usize, photo_id: usize) 
     Ok(row_id)
 }
 
-pub fn parse_row_into_photo(row: Vec<DatabaseParam>) -> Option<(usize, PhotoFile)> {
+pub fn parse_row_into_photo(row: Vec<DatabaseParam>) -> Option<Photo> {
     let mut iterator = row.into_iter();
     let id = iterator.next()?.usize();
     let onedrive_id = iterator.next()?.string();
@@ -119,9 +120,10 @@ pub fn parse_row_into_photo(row: Vec<DatabaseParam>) -> Option<(usize, PhotoFile
         )
     };
 
-    Some((id,
-        PhotoFile {
-            id: onedrive_id,
+    Some(
+        Photo {
+            id,
+            onedrive_id,
             name,
             creation_date,
             width,
@@ -129,22 +131,23 @@ pub fn parse_row_into_photo(row: Vec<DatabaseParam>) -> Option<(usize, PhotoFile
             filesize,
             location
         }
-    ))
+    )
 }
 
-pub fn parse_row_into_album(row: Vec<DatabaseParam>) -> Option<(usize, AlbumDriveItem)> {
+pub fn parse_row_into_album(row: Vec<DatabaseParam>) -> Option<Album> {
     let mut iterator = row.into_iter();
     let id = iterator.next()?.usize();
     let onedrive_id = iterator.next()?.string();
     let name = iterator.next()?.string();
+    let share_link = iterator.next()?.string();
 
-    Some((id, AlbumDriveItem {
-        id: onedrive_id, name
-    }))
+    Some(Album {
+        id, onedrive_id, name, share_link
+    })
 }
 
 /// Selects photos in album
-pub async fn select_photos_in_album(database: DataLink, album_id: usize) -> Res<Vec<(usize, PhotoFile)>> {
+pub async fn select_photos_in_album(database: DataLink, album_id: usize) -> Res<Vec<Photo>> {
     Ok(database.query_map(sql::SELECT_PHOTOS_BY_ALBUM_ID, DatabaseParams::single(DatabaseParam::Usize(album_id)))
         .await?
         .into_iter()
@@ -153,7 +156,7 @@ pub async fn select_photos_in_album(database: DataLink, album_id: usize) -> Res<
 }
 
 /// Select all photos
-pub async fn select_all_photos(database: DataLink) -> Res<Vec<(usize, PhotoFile)>> {
+pub async fn select_all_photos(database: DataLink) -> Res<Vec<Photo>> {
     Ok(database.query_map(sql::SELECT_ALL_PHOTOS, DatabaseParams::empty())
         .await?
         .into_iter()
@@ -162,7 +165,7 @@ pub async fn select_all_photos(database: DataLink) -> Res<Vec<(usize, PhotoFile)
 }
 
 /// Select all albums
-pub async fn select_albums(database: DataLink) -> Res<Vec<(usize, AlbumDriveItem)>> {
+pub async fn select_albums(database: DataLink) -> Res<Vec<Album>> {
     Ok(database.query_map(sql::SELECT_ALL_ALBUMS, DatabaseParams::empty())
         .await?
         .into_iter()
