@@ -132,6 +132,17 @@ pub fn parse_row_into_photo(row: Vec<DatabaseParam>) -> Option<(usize, PhotoFile
     ))
 }
 
+pub fn parse_row_into_album(row: Vec<DatabaseParam>) -> Option<(usize, AlbumDriveItem)> {
+    let mut iterator = row.into_iter();
+    let id = iterator.next()?.usize();
+    let onedrive_id = iterator.next()?.string();
+    let name = iterator.next()?.string();
+
+    Some((id, AlbumDriveItem {
+        id: onedrive_id, name
+    }))
+}
+
 /// Selects photos in album
 pub async fn select_photos_in_album(database: DataLink, album_id: usize) -> Res<Vec<(usize, PhotoFile)>> {
     Ok(database.query_map(sql::SELECT_PHOTOS_BY_ALBUM_ID, DatabaseParams::single(DatabaseParam::Usize(album_id)))
@@ -147,5 +158,14 @@ pub async fn select_all_photos(database: DataLink) -> Res<Vec<(usize, PhotoFile)
         .await?
         .into_iter()
         .filter_map(parse_row_into_photo)
+        .collect())
+}
+
+/// Select all albums
+pub async fn select_albums(database: DataLink) -> Res<Vec<(usize, AlbumDriveItem)>> {
+    Ok(database.query_map(sql::SELECT_ALL_ALBUMS, DatabaseParams::empty())
+        .await?
+        .into_iter()
+        .filter_map(parse_row_into_album)
         .collect())
 }

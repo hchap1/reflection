@@ -14,9 +14,14 @@ const READ_CONTENTS_URL: &str = "https://graph.microsoft.com/v1.0/drives/";
 pub struct AlbumDriveItem {
     pub id: String,
     pub name: String,
+}
 
-    #[serde(rename = "mediaAlbum")]
-    pub album_metadata: AlbumMetadata
+#[derive(Debug, Clone)]
+pub struct Album {
+    pub id: usize,
+    pub onedrive_id: String,
+    pub name: String,
+    pub share_link: String
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -27,11 +32,11 @@ pub struct AlbumMetadata {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AlbumContentsResponse {
-    value: Vec<Photo>
+    value: Vec<PhotoResponse>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct Photo {
+struct PhotoResponse {
 
     #[serde(rename = "createdDateTime")]
     creation_date: String,
@@ -70,7 +75,7 @@ pub struct PhotoFile {
 }
 
 impl PhotoFile {
-    fn from_response(response: Photo) -> PhotoFile {
+    fn from_response(response: PhotoResponse) -> PhotoFile {
         PhotoFile {
             id: response.id,
             name: response.name,
@@ -88,7 +93,7 @@ impl PhotoFile {
     }
 }
 
-pub async fn get_album_children(access_token: AccessToken, drive_id: String, share_link: String) -> Res<(AlbumDriveItem, Vec<PhotoFile>)> {
+pub async fn retrieve_album(access_token: AccessToken, drive_id: String, share_link: String) -> Res<(AlbumDriveItem, Vec<PhotoFile>)> {
     let encoded_link = BASE64_URL_SAFE_NO_PAD.encode(share_link);
     let drive_item = make_request::<AlbumDriveItem>(&format!("{READ_SHARE_URL}{encoded_link}/driveItem"), access_token.get().to_string(), vec![]).await?;
 
