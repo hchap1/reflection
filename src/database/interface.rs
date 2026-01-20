@@ -1,4 +1,5 @@
-use crate::{database::sql, error::Res};
+use crate::{database::sql, error::Res, onedrive::get_album_children::{AlbumDriveItem, LocationData, PhotoFile}};
+use chrono::{DateTime, Utc};
 use rusqlite_async::database::{DataLink, DatabaseParam, DatabaseParams};
 
 #[derive(Clone, Debug)]
@@ -30,4 +31,121 @@ pub async fn retrieve_token(database: DataLink) -> Res<(String, usize)> {
     let token = row.first().ok_or(DatabaseInterfaceError::MalformedRow)?.string();
     let expiration = row.get(1).ok_or(DatabaseInterfaceError::MalformedRow)?.usize();
     Ok((token, expiration))
+}
+
+/// Insert a new album record
+pub async fn insert_album(database: DataLink, album: AlbumDriveItem) -> Res<usize> {
+    let (row_id, _) = database.insert(sql::INSERT_ALBUM, DatabaseParams::new(vec![
+        DatabaseParam::String(album.id),
+        DatabaseParam::String(album.name)
+    ])).await?;
+
+    Ok(row_id)
+}
+
+/// Insert a new photo record
+pub async fn insert_photo(database: DataLink, photo: PhotoFile) -> Res<usize> {
+
+    let time_string = match photo.creation_date {
+        Some(date) => {
+            let datetime: DateTime<Utc> = date.into();
+            datetime.to_rfc3339()
+        },
+        None => String::from("NONE")
+    };
+
+    let (latitude, longitude, altitude) = match photo.location {
+        Some(location) => (location.latitude, location.longitude, location.altitude.unwrap_or(0f64)),
+        None => (0f64, 0f64, 0f64)
+    };
+
+    let (row_id, _) = database.insert(sql::INSERT_ALBUM, DatabaseParams::new(vec![
+        DatabaseParam::String(photo.id),
+        DatabaseParam::String(photo.name),
+        DatabaseParam::String(time_string),
+        DatabaseParam::Usize(photo.width),
+        DatabaseParam::Usize(photo.height),
+        DatabaseParam::Usize(photo.filesize),
+        DatabaseParam::F64(latitude),
+        DatabaseParam::F64(longitude),
+        DatabaseParam::F64(altitude)
+    ])).await?;
+
+    Ok(row_id)
+}
+
+/// Insert an entry tagging a photo as part of an album
+pub async fn insert_entry(database: DataLink, album_id: usize, photo_id: usize) -> Res<usize> {
+    let (row_id, _) = database.insert(sql::INSERT_ALBUM, DatabaseParams::new(vec![
+        DatabaseParam::Usize(album_id),
+        DatabaseParam::Usize(photo_id)
+    ])).await?;
+
+    Ok(row_id)
+}
+
+pub fn parse_row_into_photo(row: Vec<DatabaseParam>) -> Option<(usize, PhotoFile)> {
+    let mut iterator = row.into_iter();
+    let id = iterator.next()?.usize();
+    let onedrive_id = iterator.next()?.string();
+    let name = iterator.next()?.string();
+    let time_string = iterator.next()?.string();
+    let width = iterator.next()?.usize();
+    let height = iterator.next()?.usize();
+    let filesize = iterator.next()?.usize();
+    let raw_latitude = iterator.next()?.f64();
+    let raw_longitude = iterator.next()?.f64();
+    let raw_altitude = iterator.next()?.f64();
+
+    let creation_date = match time_string.as_str() {
+        "NONE" => None,
+        encoded_time => {
+            Some(DateTime::parse_from_rfc3339(encoded_time).ok()?.with_timezone(&Utc).into())
+        }
+    };
+
+    let location = if raw_latitude == 0f64 && raw_longitude == 0f64 {
+        None
+    } else {
+        Some(
+            LocationData {
+                latitude: raw_latitude,
+                longitude: raw_longitude,
+                altitude: match raw_altitude {
+                    0f64 => None,
+                    nonzero => Some(nonzero)
+                }
+            }
+        )
+    };
+
+    Some((id,
+        PhotoFile {
+            id: onedrive_id,
+            name,
+            creation_date,
+            width,
+            height,
+            filesize,
+            location
+        }
+    ))
+}
+
+/// Selects photos in album
+pub async fn select_photos_in_album(database: DataLink, album_id: usize) -> Res<Vec<(usize, PhotoFile)>> {
+    Ok(database.query_map(sql::SELECT_PHOTOS_BY_ALBUM_ID, DatabaseParams::single(DatabaseParam::Usize(album_id)))
+        .await?
+        .into_iter()
+        .filter_map(parse_row_into_photo)
+        .collect())
+}
+
+/// Select all photos
+pub async fn select_all_photos(database: DataLink) -> Res<Vec<(usize, PhotoFile)>> {
+    Ok(database.query_map(sql::SELECT_ALL_PHOTOS, DatabaseParams::empty())
+        .await?
+        .into_iter()
+        .filter_map(parse_row_into_photo)
+        .collect())
 }

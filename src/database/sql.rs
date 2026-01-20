@@ -111,3 +111,19 @@ pub const DELETE_ALBUM_BY_ID: &str = "
     DELETE FROM Albums
     WHERE id = ?;
 ";
+
+pub const SELECT_PHOTOS_BY_ALBUM_ID: &str = "
+    SELECT Photos.*
+    FROM Photos
+    INNER JOIN Entries ON Entries.photo_id = Photos.id
+    WHERE Entries.album_id = ?;
+";
+
+pub const SELECT_ALL_ALBUMS: &str = "
+    SELECT *
+    FROM Albums;
+";
+
+pub const SELECT_ALL_PHOTOS: &str = "
+    SELECT * FROM Photos;
+";

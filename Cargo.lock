@@ -3070,9 +3070,9 @@ dependencies = [
 
 [[package]]
 name = "rusqlite-async"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7991172a980edd117315bfc121fa230ea10603c46657062cba4d84fd89b974e5"
+checksum = "3c4eaa58b623dfc8aa26bedb7c9ea82b1cf9119449039bdb30d008948269e1c3"
 dependencies = [
  "async-channel",
  "rusqlite",

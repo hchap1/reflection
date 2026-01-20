@@ -53,9 +53,9 @@ struct ResolutionData {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LocationData {
-    altitude: Option<f64>,
-    latitude: f64,
-    longitude: f64
+    pub altitude: Option<f64>,
+    pub latitude: f64,
+    pub longitude: f64
 }
 
 #[derive(Clone, Debug)]
