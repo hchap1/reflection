@@ -1,6 +1,7 @@
 use std::time::SystemTime;
 use chrono::{DateTime, Utc};
 
+use rusqlite_async::database::DataLink;
 use serde::{Deserialize, Serialize};
 use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
 
@@ -106,7 +107,7 @@ impl Photo {
     }
 }
 
-pub async fn retrieve_album(access_token: AccessToken, drive_id: String, share_link: String) -> Res<(Album, Vec<Photo>)> {
+pub async fn retrieve_album(access_token: AccessToken, drive_id: String, share_link: String, database: DataLink) -> Res<(Album, Vec<Photo>)> {
     let encoded_link = BASE64_URL_SAFE_NO_PAD.encode(&share_link);
     let drive_item = make_request::<AlbumDriveItem>(&format!("{READ_SHARE_URL}{encoded_link}/driveItem"), access_token.get().to_string(), vec![]).await?;
 

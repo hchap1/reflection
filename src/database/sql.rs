@@ -130,3 +130,11 @@ pub const SELECT_ALL_ALBUMS: &str = "
 pub const SELECT_ALL_PHOTOS: &str = "
     SELECT * FROM Photos;
 ";
+
+pub const SELECT_ALBUM_BY_ID: &str = "
+    SELECT * FROM Albums WHERE id = ?;
+";
+
+pub const SELECT_PHOTO_BY_ID: &str = "
+    SELECT * FROM Photos WHERE id = ?;
+";
