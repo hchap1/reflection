@@ -47,3 +47,67 @@ pub const INSERT_TOKEN: &str = "
 pub const SELECT_TOKEN: &str = "
     SELECT token, expiration FROM Tokens ORDER BY id DESC LIMIT 1;
 ";
+
+pub const INSERT_PHOTO: &str = "
+    INSERT INTO Photos (
+        id,
+        onedrive_id,
+        name,
+        creation_date,
+        width,
+        height,
+        filesize,
+        latitude,
+        longitude,
+        altitude
+    ) VALUES (
+        NULL,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?
+    );
+";
+
+pub const INSERT_ALBUM: &str = "
+    INSERT INTO Albums (
+        id,
+        onedrive_id,
+        name
+    ) VALUES (
+        NULL,
+        ?,
+        ?
+    );
+";
+
+pub const INSERT_ENTRY: &str = "
+    INSERT INTO Entries (
+        album_id,
+        photo_id
+    ) VALUES (
+        ?,
+        ?
+    );
+";
+
+pub const DELETE_ENTRY: &str = "
+    DELETE FROM Entries
+    WHERE album_id = ?
+      AND photo_id = ?;
+";
+
+pub const DELETE_PHOTO_BY_ID: &str = "
+    DELETE FROM Photos
+    WHERE id = ?;
+";
+
+pub const DELETE_ALBUM_BY_ID: &str = "
+    DELETE FROM Albums
+    WHERE id = ?;
+";
