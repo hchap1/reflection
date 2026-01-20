@@ -24,6 +24,17 @@ pub struct Album {
     pub share_link: String
 }
 
+impl Album {
+    fn from_response(response: AlbumDriveItem, share_link: String) -> Album {
+        Album {
+            id: 0,
+            onedrive_id: response.id,
+            name: response.name,
+            share_link
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AlbumMetadata {
     #[serde(rename = "albumItemCount")]
@@ -64,8 +75,9 @@ pub struct LocationData {
 }
 
 #[derive(Clone, Debug)]
-pub struct PhotoFile {
-    pub id: String,
+pub struct Photo {
+    pub id: usize,
+    pub onedrive_id: String,
     pub name: String,
     pub creation_date: Option<SystemTime>,
     pub width: usize,
@@ -74,10 +86,11 @@ pub struct PhotoFile {
     pub location: Option<LocationData>
 }
 
-impl PhotoFile {
-    fn from_response(response: PhotoResponse) -> PhotoFile {
-        PhotoFile {
-            id: response.id,
+impl Photo {
+    fn from_response(response: PhotoResponse) -> Photo {
+        Photo {
+            id: 0,
+            onedrive_id: response.id,
             name: response.name,
             creation_date: {
                 match response.creation_date.parse::<DateTime<Utc>>() {
@@ -93,13 +106,13 @@ impl PhotoFile {
     }
 }
 
-pub async fn retrieve_album(access_token: AccessToken, drive_id: String, share_link: String) -> Res<(AlbumDriveItem, Vec<PhotoFile>)> {
-    let encoded_link = BASE64_URL_SAFE_NO_PAD.encode(share_link);
+pub async fn retrieve_album(access_token: AccessToken, drive_id: String, share_link: String) -> Res<(Album, Vec<Photo>)> {
+    let encoded_link = BASE64_URL_SAFE_NO_PAD.encode(&share_link);
     let drive_item = make_request::<AlbumDriveItem>(&format!("{READ_SHARE_URL}{encoded_link}/driveItem"), access_token.get().to_string(), vec![]).await?;
 
     let album_id = drive_item.id.clone();
 
-    Ok((drive_item, make_request::<AlbumContentsResponse>(
+    Ok((Album::from_response(drive_item, share_link), make_request::<AlbumContentsResponse>(
         &format!(
             "{READ_CONTENTS_URL}{}/items/{}/children",
             drive_id,
@@ -111,6 +124,6 @@ pub async fn retrieve_album(access_token: AccessToken, drive_id: String, share_l
         .await?
         .value
         .into_iter()
-        .map(PhotoFile::from_response)
+        .map(Photo::from_response)
         .collect()))
 }
