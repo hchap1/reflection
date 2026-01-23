@@ -1,10 +1,12 @@
 use std::time::SystemTime;
 use chrono::{DateTime, Utc};
 
+use futures_util::{StreamExt, stream};
 use rusqlite_async::database::DataLink;
 use serde::{Deserialize, Serialize};
 use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
 
+use crate::database::interface::{insert_album, insert_photo};
 use crate::onedrive::api::{AccessToken, make_request};
 use crate::error::Res;
 
@@ -107,17 +109,21 @@ impl Photo {
     }
 }
 
-pub async fn retrieve_album(access_token: AccessToken, drive_id: String, share_link: String, database: DataLink) -> Res<(Album, Vec<Photo>)> {
+pub async fn new_album(access_token: AccessToken, drive_id: String, share_link: String, database: DataLink) -> Res<(Album, Vec<Photo>)> {
     let encoded_link = BASE64_URL_SAFE_NO_PAD.encode(&share_link);
     let drive_item = make_request::<AlbumDriveItem>(&format!("{READ_SHARE_URL}{encoded_link}/driveItem"), access_token.get().to_string(), vec![]).await?;
+    let album = insert_album(database.clone(), Album::from_response(drive_item, share_link)).await?;
+    check_album(access_token, drive_id, album, database).await
+}
 
-    let album_id = drive_item.id.clone();
+// TODO test to make sure this updates
+pub async fn check_album(access_token: AccessToken, drive_id: String, album: Album, database: DataLink) -> Res<(Album, Vec<Photo>)> {
 
-    Ok((Album::from_response(drive_item, share_link), make_request::<AlbumContentsResponse>(
+    let stream = stream::iter(make_request::<AlbumContentsResponse>(
         &format!(
             "{READ_CONTENTS_URL}{}/items/{}/children",
             drive_id,
-            album_id
+            &album.id
         ),
         access_token.get().to_string(),
         vec![]
@@ -125,6 +131,13 @@ pub async fn retrieve_album(access_token: AccessToken, drive_id: String, share_l
         .await?
         .value
         .into_iter()
-        .map(Photo::from_response)
-        .collect()))
+        .map(Photo::from_response))
+        .filter_map(async |photo| insert_photo(database.clone(), photo).await.ok())
+        .collect()
+        .await;
+
+    Ok((
+        album,
+        stream
+    ))
 }
