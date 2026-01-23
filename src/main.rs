@@ -1,5 +1,13 @@
 #![allow(clippy::enum_variant_names)]
 
+use iced::Task;
+use frontend::application::Application;
+use rusqlite_async::database::Database;
+use directories::create::Directories;
+
+use crate::frontend::message::Message;
+use crate::frontend::message::Global;
+
 mod error;
 mod util;
 mod database;
@@ -8,10 +16,14 @@ mod authentication;
 mod onedrive;
 mod frontend;
 
-fn main() {
+fn main() -> iced::Result {
+    let directories = Directories::create_or_load().expect("[CRITICAL ERROR] Unable to find suitable directories location.");
+    let (database, error_handle) = Database::new(directories.root);
 
+    iced::application(|| (Application::default(), Task::done(Message::Global(Global::Authenticate))),
+        Application::update(),
+        Application::view()
+    ).title("Reflection").run()
 }
 
-// TODO Download scan function that checks every photo and makes sure they are downloaded
-// TODO Create wrapper around album scan function that does it for every cached album
-// TODO Begin work on frontend
+// TODO Test if album updating works

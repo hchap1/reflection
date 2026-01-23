@@ -25,7 +25,9 @@ macro_rules! message_enum {
 
 #[derive(Clone, Debug)]
 pub enum Global {
-    None
+    None,
+    // Called to start async tasks to authenticate, using either database or oauth2
+    Authenticate
 }
 
 message_enum! {
