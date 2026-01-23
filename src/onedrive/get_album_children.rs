@@ -6,7 +6,7 @@ use rusqlite_async::database::DataLink;
 use serde::{Deserialize, Serialize};
 use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
 
-use crate::database::interface::{insert_album, insert_photo};
+use crate::database::interface::{insert_album, insert_photo, select_albums};
 use crate::onedrive::api::{AccessToken, make_request};
 use crate::error::Res;
 
@@ -140,4 +140,16 @@ pub async fn check_album(access_token: AccessToken, drive_id: String, album: Alb
         album,
         stream
     ))
+}
+
+// Update all cached albums
+pub async fn check_all_albums(access_token: AccessToken, drive_id: String, database: DataLink) -> Res<Vec<(Album, Vec<Photo>)>> {
+    Ok(stream::iter(
+        select_albums(database.clone())
+            .await?
+            .into_iter()
+    )
+        .filter_map(async |album| check_album(access_token.clone(), drive_id.clone(), album.clone(), database.clone()).await.ok())
+        .collect()
+        .await)
 }
