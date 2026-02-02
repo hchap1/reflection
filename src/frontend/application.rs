@@ -168,6 +168,7 @@ impl Application {
                         Task::done(Global::Load(Pages::BrowseAlbum).into()).chain(Task::future(interface::select_photos_in_album(datalink, album_sql_id))
                             .then(|res| match res {
                                 Ok((album, contents)) => Task::done(BrowseAlbumMessage::Display(album.clone(), contents.clone()).into()).chain({
+                                    let datalink = self.database.derive();
                                     Task::batch(
                                         contents.into_iter()
                                             .map(|photo| Task::done(Global::Download(photo, album.onedrive_id.clone()).into()))
