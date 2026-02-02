@@ -109,7 +109,9 @@ impl Application {
                     }
 
                     Global::AuthenticationComplete(tokenset, drivedata) => {
-
+                        self.tokenset = Some(tokenset);
+                        self.drivedata = Some(drivedata);
+                        Task::none()
                     }
                 }
             },
