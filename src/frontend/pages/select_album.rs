@@ -24,6 +24,7 @@ impl SelectAlbumPage {
         }
     }
 
+    #[allow(mismatched_lifetime_syntaxes)]
     pub fn view(&self) -> Column<Message> {
         Column::new()
             .push(

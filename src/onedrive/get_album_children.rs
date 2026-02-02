@@ -113,7 +113,6 @@ impl Photo {
 pub async fn new_album(access_token: AccessToken, drive_id: String, share_link: String, database: DataLink) -> Res<(Album, Vec<Photo>)> {
     let encoded_link = BASE64_URL_SAFE_NO_PAD.encode(&share_link);
     let drive_item = make_request::<AlbumDriveItem>(&format!("{READ_SHARE_URL}{encoded_link}/driveItem"), access_token.get().to_string(), vec![]).await?;
-    println!("RECEIVED DRIVE ITEM");
     let album = insert_album(database.clone(), Album::from_response(drive_item, share_link)).await?;
     check_album(access_token, drive_id, album, database).await
 }

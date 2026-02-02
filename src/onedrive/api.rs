@@ -41,7 +41,6 @@ pub async fn make_request<T: DeserializeOwned>(url: &str, access_token: String, 
 
     // Extract body of response.
     let body = res.text().await?;
-    println!("BODY: {body}");
 
     // Attempt to deserialize with T.
     let object: T = serde_json::from_str(body.as_str())?;
