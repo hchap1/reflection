@@ -36,7 +36,7 @@ pub async fn download_drive_item(
     }
 
     let client = Client::new();
-    let content_url = format!("{CONTENT_URL}{}/content", photo_file.id);
+    let content_url = format!("{CONTENT_URL}{}/content", photo_file.onedrive_id);
     let response = client
         .get(&content_url)
         .bearer_auth(access_token.get())
