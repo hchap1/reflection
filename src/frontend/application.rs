@@ -2,9 +2,20 @@ use async_channel::Receiver;
 use iced::{widget::text, Element, Task};
 use rusqlite_async::database::Database;
 
-use crate::{directories::create::Directories, error::Error, frontend::{message::Message, pages::select_album::SelectAlbumPage}};
-use crate::{authentication::oauth2::{api::TokenSet, wrapper::authenticate}, directories::create::Directories, error::Error, frontend::{message::{Global, Message}, pages::{new_album, select_album::{SelectAlbumMessage, SelectAlbumPage}, Pages}}, onedrive::{api::AccessToken, get_album_children::{self, new_album}, get_drive::DriveData}};
+use crate::authentication::oauth2::api::TokenSet;
+use crate::authentication::oauth2::wrapper::authenticate;
+use crate::directories::create::Directories;
+use crate::error::Error;
+use crate::frontend::message::Global;
+use crate::frontend::message::Message;
+use crate::frontend::pages::select_album::SelectAlbumPage;
+use crate::frontend::pages::select_album::SelectAlbumMessage;
+use crate::frontend::pages::Pages;
+use crate::onedrive::api::AccessToken;
+use crate::onedrive::get_album_children::new_album;
+use crate::onedrive::get_drive::DriveData;
 
+#[derive(Debug, Clone)]
 pub enum ApplicationError {
     NotAuthenticated
 }
@@ -12,7 +23,6 @@ pub enum ApplicationError {
 pub struct Application {
     database: Database,
     database_error_output: Receiver<rusqlite_async::error::Error>,
-    select_album_page: SelectAlbumPage
 
     // Authentication
     tokenset: Option<TokenSet>,
