@@ -1,3 +1,5 @@
+use crate::frontend::pages::select_album::SelectAlbumMessage;
+
 macro_rules! message_enum {
     (
         $(#[$meta:meta])*
@@ -32,6 +34,7 @@ pub enum Global {
 
 message_enum! {
     pub enum Message {
-        Global
+        Global,
+        SelectAlbumMessage
     }
 }
