@@ -143,9 +143,16 @@ impl Application {
                             None => return Task::done(Error::from(ApplicationError::NotAuthenticated).into())
                         };
 
+                        let photo_id_clone = photo.onedrive_id.clone();
+
                         Task::future(download_drive_item(access_token, photo, self.directories.albums.clone(), album_id))
-                            .then(|res| match res {
-                                Ok(_) => Task::none(),
+                            .then(move |res| match res {
+                                Ok((_image_path, thumbnail_option)) => Task::batch(vec![
+                                    Task::done(match thumbnail_option {
+                                        Some(thumbnail_path) => BrowseAlbumMessage::Thumbnail(photo_id_clone.clone(), thumbnail_path).into(),
+                                        None => Global::None.into()
+                                    })
+                                ]),
                                 Err(error) => Task::done(error.into())
                             })
                     }

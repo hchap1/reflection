@@ -20,7 +20,7 @@ pub async fn download_drive_item(
     photo_file: Photo,
     album_root_dir: PathBuf,
     album_id: String
-) -> Res<PathBuf> {
+) -> Res<(PathBuf, Option<PathBuf>)> {
 
     let directory = album_root_dir.join(&album_id);
     if !directory.exists() {
@@ -31,8 +31,25 @@ pub async fn download_drive_item(
     let extension = original_path.extension().ok_or(DownloadError::CouldNotParseExtension)?;
 
     let file_path = directory.join(&photo_file.onedrive_id).with_extension(extension);
+
+    let thumbnail_path = match (file_path.parent(), file_path.extension(), file_path.file_prefix()) {
+        (Some(parent), Some(extension), Some(name)) => {
+            let name = name.to_string_lossy().to_string();
+            let extension = extension.to_string_lossy().to_string();
+            Some(parent.join(format!("{name}-thumbnail.{extension}")))
+        }
+        _ => None
+    };
+
     if file_path.exists() {
-        return Ok(file_path);
+        if let Some(thumbnail_path) = thumbnail_path {
+            if thumbnail_path.exists() {
+                return Ok((file_path, Some(thumbnail_path)));
+            } else {
+                return Ok((file_path, None))
+            }
+        }
+        return Ok((file_path, None));
     }
 
     let client = Client::new();
@@ -52,16 +69,7 @@ pub async fn download_drive_item(
         file.write_all(&bytes).await?;
     }
 
-    let thumbnail_path = match (file_path.parent(), file_path.extension(), file_path.file_prefix()) {
-        (Some(parent), Some(extension), Some(name)) => {
-            let name = name.to_string_lossy().to_string();
-            let extension = extension.to_string_lossy().to_string();
-            Some(parent.join(format!("{name}-thumbnail.{extension}")))
-        }
-        _ => None
-    };
-
-    if let Some(thumbnail_path) = thumbnail_path {
+    if let Some(thumbnail_path) = thumbnail_path.clone() {
         let file_path_clone = file_path.clone();
         tokio::task::spawn_blocking(move || {
             if let Ok(img) = image::open(&file_path_clone) {
@@ -71,5 +79,5 @@ pub async fn download_drive_item(
         }).await?;
     };
 
-    Ok(file_path)
+    Ok((file_path, thumbnail_path))
 }
