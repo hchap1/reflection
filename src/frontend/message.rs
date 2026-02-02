@@ -1,3 +1,4 @@
+use crate::frontend::pages::Pages;
 use crate::onedrive::get_album_children::Photo;
 use crate::{authentication::oauth2::api::TokenSet, error::Error, frontend::pages::select_album::SelectAlbumMessage, onedrive::get_drive::DriveData};
 use crate::frontend::pages::browse_album::BrowseAlbumMessage;
@@ -34,7 +35,8 @@ pub enum Global {
     Authenticate,
     AuthenticationComplete(TokenSet, DriveData),
     AddNewAlbum(String),
-    Download(Photo, String)
+    Download(Photo, String),
+    Load(Pages),
 }
 
 message_enum! {

@@ -146,6 +146,11 @@ impl Application {
                                 Err(error) => Task::done(error.into())
                             })
                     }
+
+                    Global::Load(page) => {
+                        self.active_page = page;
+                        Task::none()
+                    }
                 }
             },
 
