@@ -11,18 +11,18 @@ use crate::onedrive::get_album_children::Album;
 use crate::onedrive::get_album_children::Photo;
 
 #[derive(Debug, Clone)]
-pub enum NewAlbumMessage {
+pub enum BrowseAlbumMessage {
     Display(Album, Vec<Photo>)
 }
 
 #[derive(Default)]
-pub struct NewAlbumPage {
+pub struct BrowseAlbumPage {
     album: Option<Album>,
     photos: Vec<Photo>,
     thumbnails: Vec<Option<Handle>>
 }
 
-impl NewAlbumPage {
+impl BrowseAlbumPage {
     pub fn view(&self) -> Column<Message> {
         Column::new()
             .spacing(10)
@@ -40,9 +40,9 @@ impl NewAlbumPage {
             )
     }
 
-    pub fn update(&mut self, message: NewAlbumMessage) -> Task<Message> {
+    pub fn update(&mut self, message: BrowseAlbumMessage) -> Task<Message> {
         match message {
-            NewAlbumMessage::Display(album, photos) => {
+            BrowseAlbumMessage::Display(album, photos) => {
                 let album_id = album.onedrive_id.clone();
                 self.album = Some(album);
                 self.photos = photos;

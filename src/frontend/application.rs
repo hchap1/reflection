@@ -9,7 +9,8 @@ use crate::directories::create::Directories;
 use crate::error::Error;
 use crate::frontend::message::Global;
 use crate::frontend::message::Message;
-use crate::frontend::pages::new_album::NewAlbumMessage;
+use crate::frontend::pages::browse_album::BrowseAlbumPage;
+use crate::frontend::pages::browse_album::BrowseAlbumMessage;
 use crate::frontend::pages::select_album::SelectAlbumPage;
 use crate::frontend::pages::select_album::SelectAlbumMessage;
 use crate::frontend::pages::Pages;
@@ -35,6 +36,7 @@ pub struct Application {
     // Pages
     active_page: Pages,
     select_album_page: SelectAlbumPage,
+    browse_album_page: BrowseAlbumPage
 }
 
 impl Application {
@@ -51,7 +53,8 @@ impl Application {
             tokenset: None,
             drivedata: None,
             active_page: Pages::SelectAlbum,
-            select_album_page: SelectAlbumPage::new()
+            select_album_page: SelectAlbumPage::new(),
+            browse_album_page: BrowseAlbumPage::default()
         }
     }
 
@@ -60,7 +63,7 @@ impl Application {
         match self.active_page {
             Pages::SelectAlbum => self.select_album_page.view().into(),
             Pages::PhotoDisplay => text("404").into(),
-            Pages::NewAlbum => text("404").into(),
+            Pages::BrowseAlbum => self.browse_album_page.view().into(),
         }
     }
 
@@ -112,7 +115,7 @@ impl Application {
                                             Ok((album, contents)) => {
                                                 Task::batch(vec![
                                                     Task::done(SelectAlbumMessage::AddAlbum(album.clone()).into()),
-                                                    Task::done(NewAlbumMessage::Display(album, contents).into())
+                                                    Task::done(BrowseAlbumMessage::Display(album, contents).into())
                                                 ])
                                             }
 
@@ -147,6 +150,11 @@ impl Application {
             },
 
             Message::SelectAlbumMessage(message) => self.select_album_page.update(message),
+            Message::BrowseAlbumMessage(message) => self.browse_album_page.update(message),
+            Message::Error(error) => {
+                eprintln!("Error: {error:?}");
+                Task::none()
+            }
         }
     }
 }

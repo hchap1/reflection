@@ -1,6 +1,6 @@
 use crate::onedrive::get_album_children::Photo;
 use crate::{authentication::oauth2::api::TokenSet, error::Error, frontend::pages::select_album::SelectAlbumMessage, onedrive::get_drive::DriveData};
-use crate::frontend::pages::new_album::NewAlbumMessage;
+use crate::frontend::pages::browse_album::BrowseAlbumMessage;
 
 macro_rules! message_enum {
     (
@@ -41,7 +41,7 @@ message_enum! {
     pub enum Message {
         Global,
         SelectAlbumMessage,
-        NewAlbumMessage,
+        BrowseAlbumMessage,
         Error
     }
 }
