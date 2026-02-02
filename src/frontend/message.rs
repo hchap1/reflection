@@ -37,6 +37,7 @@ pub enum Global {
     AddNewAlbum(String),
     Download(Photo, String),
     Load(Pages),
+    BrowseAlbum(usize)
 }
 
 message_enum! {

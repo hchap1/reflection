@@ -21,7 +21,8 @@ use crate::onedrive::get_drive::DriveData;
 
 #[derive(Debug, Clone)]
 pub enum ApplicationError {
-    NotAuthenticated
+    NotAuthenticated,
+    NoSuchAlbum
 }
 
 pub struct Application {
@@ -160,6 +161,16 @@ impl Application {
                     Global::Load(page) => {
                         self.active_page = page;
                         Task::none()
+                    }
+
+                    Global::BrowseAlbum(album_sql_id) => {
+                        let datalink = self.database.derive();
+                        Task::future(interface::select_photos_in_album(datalink, album_sql_id))
+                            .then(|res| match res {
+                                Ok(contents) => Task::batch(vec![
+                                    Task::done(BrowseAlbumMessage::Display(album, contents).into())
+                                ])
+                            })
                     }
                 }
             },

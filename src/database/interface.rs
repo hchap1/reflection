@@ -1,4 +1,4 @@
-use crate::{database::sql, error::Res, onedrive::get_album_children::{Album, LocationData, Photo}};
+use crate::{database::sql::{self, SELECT_ALBUM_BY_ID}, error::Res, frontend::application::ApplicationError, onedrive::get_album_children::{Album, LocationData, Photo}};
 use chrono::{DateTime, Utc};
 use rusqlite_async::database::{DataLink, DatabaseParam, DatabaseParams};
 
@@ -188,12 +188,21 @@ pub fn parse_row_into_album(row: Vec<DatabaseParam>) -> Option<Album> {
 }
 
 /// Selects photos in album
-pub async fn select_photos_in_album(database: DataLink, album_id: usize) -> Res<Vec<Photo>> {
-    Ok(database.query_map(sql::SELECT_PHOTOS_BY_ALBUM_ID, DatabaseParams::single(DatabaseParam::Usize(album_id)))
+pub async fn select_photos_in_album(database: DataLink, album_id: usize) -> Res<(Album, Vec<Photo>)> {
+
+    let album = database.query_map(SELECT_ALBUM_BY_ID, DatabaseParams::single(DatabaseParam::Usize(album_id)))
+        .await?
+        .into_iter()
+        .filter_map(parse_row_into_album)
+        .next()
+        .ok_or(ApplicationError::NoSuchAlbum)?;
+
+
+    Ok((album, database.query_map(sql::SELECT_PHOTOS_BY_ALBUM_ID, DatabaseParams::single(DatabaseParam::Usize(album_id)))
         .await?
         .into_iter()
         .filter_map(parse_row_into_photo)
-        .collect())
+        .collect()))
 }
 
 /// Select all photos

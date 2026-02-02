@@ -1,3 +1,4 @@
+#![allow(mismatched_lifetime_syntaxes)]
 #![allow(clippy::enum_variant_names)]
 
 use iced::Task;
