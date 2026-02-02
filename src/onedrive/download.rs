@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use image::{GenericImageView, Rgba};
 use reqwest::Client;
 use futures_util::StreamExt;
 use tokio::io::AsyncWriteExt;
@@ -42,7 +43,6 @@ pub async fn download_drive_item(
     };
 
     if file_path.exists() {
-        println!("Already exists!");
         if let Some(thumbnail_path) = thumbnail_path {
             if thumbnail_path.exists() {
                 return Ok((file_path, Some(thumbnail_path)));
@@ -74,11 +74,29 @@ pub async fn download_drive_item(
         let file_path_clone = file_path.clone();
         tokio::task::spawn_blocking(move || {
             if let Ok(img) = image::open(&file_path_clone) {
-                let thumb = img.resize(128, 128, image::imageops::FilterType::Lanczos3);
-                let _ = thumb.save(&thumbnail_path);
+                let target_size = 128;
+                let resized = img.resize(
+                    target_size,
+                    target_size,
+                    image::imageops::FilterType::Lanczos3,
+                );
+                let (w, h) = resized.dimensions();
+                let mut canvas = image::RgbaImage::from_pixel(
+                    target_size,
+                    target_size,
+                    Rgba([0, 0, 0, 255])
+                );
+
+                let x_offset = (target_size - w) / 2;
+                let y_offset = (target_size - h) / 2;
+
+                image::imageops::overlay(&mut canvas, &resized, x_offset.into(), y_offset.into());
+
+                let _ = canvas.save(&thumbnail_path);
             }
-        }).await?;
-    };
+        })
+        .await?;
+    }
 
     Ok((file_path, thumbnail_path))
 }
