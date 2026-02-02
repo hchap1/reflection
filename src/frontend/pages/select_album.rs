@@ -14,6 +14,14 @@ pub struct SelectAlbumPage {
     albums: Vec<Album>,
     input: String }
 impl SelectAlbumPage {
+
+    pub fn new() -> Self {
+        Self {
+            albums: Vec::new(),
+            input: String::new()
+        }
+    }
+
     pub fn view(&self) -> Column<Message> {
         Column::new()
             .push(
