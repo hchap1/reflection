@@ -156,6 +156,7 @@ impl Application {
 
             Message::SelectAlbumMessage(message) => self.select_album_page.update(message),
             Message::BrowseAlbumMessage(message) => self.browse_album_page.update(message),
+
             Message::Error(error) => {
                 eprintln!("Error: {error:?}");
                 Task::none()
