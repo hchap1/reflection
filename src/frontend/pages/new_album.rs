@@ -1,8 +1,10 @@
 use iced::Task;
 use iced::widget::Column;
 use iced::widget::Scrollable;
+use iced::widget::image::Handle;
 use iced::widget::text;
 
+use crate::frontend::message::Global;
 use crate::frontend::message::Message;
 use crate::frontend::widgets::photo_widget::PhotoWidget;
 use crate::onedrive::get_album_children::Album;
@@ -16,7 +18,8 @@ pub enum NewAlbumMessage {
 #[derive(Default)]
 pub struct NewAlbumPage {
     album: Option<Album>,
-    photos: Vec<Photo>
+    photos: Vec<Photo>,
+    thumbnails: Vec<Option<Handle>>
 }
 
 impl NewAlbumPage {
@@ -38,6 +41,12 @@ impl NewAlbumPage {
     }
 
     pub fn update(&mut self, message: NewAlbumMessage) -> Task<Message> {
-
+        match message {
+            NewAlbumMessage::Display(album, photos) => {
+                self.album = Some(album);
+                self.photos = photos;
+                Task::batch(self.photos.iter().map(|photo| Task::done(Global::Download(photo.clone()).into())))
+            }
+        }
     }
 }
