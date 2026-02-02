@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use image::{GenericImageView, Rgba};
+use image::{GenericImageView, Rgb, Rgba};
 use reqwest::Client;
 use futures_util::StreamExt;
 use tokio::io::AsyncWriteExt;
@@ -114,16 +114,16 @@ pub async fn download_drive_item(
                     image::imageops::FilterType::Lanczos3,
                 );
                 let (w, h) = resized.dimensions();
-                let mut canvas = image::RgbaImage::from_pixel(
+                let mut canvas = image::RgbImage::from_pixel(
                     target_size,
                     target_size,
-                    Rgba([0, 0, 0, 255])
+                    Rgb([0, 0, 0])
                 );
 
                 let x_offset = (target_size - w) / 2;
                 let y_offset = (target_size - h) / 2;
 
-                image::imageops::overlay(&mut canvas, &resized, x_offset.into(), y_offset.into());
+                image::imageops::overlay(&mut canvas, &resized.to_rgb8(), x_offset.into(), y_offset.into());
 
                 let _ = canvas.save(&thumbnail_path);
             }
