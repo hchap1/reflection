@@ -1,11 +1,11 @@
-use crate::{database::sql, error::Res, onedrive::get_album_children::{AlbumDriveItem, LocationData, PhotoFile}};
+use crate::{database::sql, error::Res, onedrive::get_album_children::{Album, LocationData, Photo}};
 use chrono::{DateTime, Utc};
 use rusqlite_async::database::{DataLink, DatabaseParam, DatabaseParams};
 
 #[derive(Clone, Debug)]
 pub enum DatabaseInterfaceError {
     IncorrectNumberOfRows,
-    MalformedRow
+    MalformedRow,
 }
 
 /// Create the tables without checking for success. If this fails, later DB calls will indicate.
@@ -33,45 +33,84 @@ pub async fn retrieve_token(database: DataLink) -> Res<(String, usize)> {
     Ok((token, expiration))
 }
 
-/// Insert a new album record
-pub async fn insert_album(database: DataLink, album: AlbumDriveItem) -> Res<usize> {
-    let (row_id, _) = database.insert(sql::INSERT_ALBUM, DatabaseParams::new(vec![
-        DatabaseParam::String(album.id),
-        DatabaseParam::String(album.name)
-    ])).await?;
+/// Use the onedrive_id to select an album
+pub async fn select_album_by_id(database: DataLink, onedrive_id: String) -> Res<Option<Album>> {
+    Ok(
+        database.query_map(sql::SELECT_ALBUM_BY_ID, DatabaseParams::single(DatabaseParam::String(onedrive_id)))
+            .await?
+            .into_iter()
+            .filter_map(parse_row_into_album)
+            .next()
+    )
+}
 
-    Ok(row_id)
+/// Use the onedrive_id to select a photo
+pub async fn select_photo_by_id(database: DataLink, onedrive_id: String) -> Res<Option<Photo>> {
+    Ok(
+        database.query_map(sql::SELECT_PHOTO_BY_ID, DatabaseParams::single(DatabaseParam::String(onedrive_id)))
+            .await?
+            .into_iter()
+            .filter_map(parse_row_into_photo)
+            .next()
+    )
+}
+
+/// Insert a new album record, and returning the completed album object
+pub async fn insert_album(database: DataLink, mut album: Album) -> Res<Album> {
+
+    // Check if the album exists in the database yet (based on unique onedrive_id)
+    match select_album_by_id(database.clone(), album.onedrive_id.clone()).await? {
+        Some(existing_album) => Ok(existing_album),
+        None => {
+            let (row_id, _) = database.insert(sql::INSERT_ALBUM, DatabaseParams::new(vec![
+                DatabaseParam::String(album.onedrive_id.clone()),
+                DatabaseParam::String(album.name.clone()),
+                DatabaseParam::String(album.share_link.clone())
+            ])).await?;
+
+            album.id = row_id;
+            Ok(album)
+        }
+    }
+
 }
 
 /// Insert a new photo record
-pub async fn insert_photo(database: DataLink, photo: PhotoFile) -> Res<usize> {
+pub async fn insert_photo(database: DataLink, mut photo: Photo) -> Res<Photo> {
+    
+    // Check if the photo already exists
+    match select_photo_by_id(database.clone(), photo.onedrive_id.clone()).await? {
+        Some(updated_photo) => Ok(updated_photo),
+        None => {
+            let time_string = match photo.creation_date {
+                Some(date) => {
+                    let datetime: DateTime<Utc> = date.into();
+                    datetime.to_rfc3339()
+                },
+                None => String::from("NONE")
+            };
 
-    let time_string = match photo.creation_date {
-        Some(date) => {
-            let datetime: DateTime<Utc> = date.into();
-            datetime.to_rfc3339()
-        },
-        None => String::from("NONE")
-    };
+            let (latitude, longitude, altitude) = match photo.location.as_ref() {
+                Some(location) => (location.latitude, location.longitude, location.altitude.unwrap_or(0f64)),
+                None => (0f64, 0f64, 0f64)
+            };
 
-    let (latitude, longitude, altitude) = match photo.location {
-        Some(location) => (location.latitude, location.longitude, location.altitude.unwrap_or(0f64)),
-        None => (0f64, 0f64, 0f64)
-    };
+            let (row_id, _) = database.insert(sql::INSERT_ALBUM, DatabaseParams::new(vec![
+                DatabaseParam::String(photo.onedrive_id.clone()),
+                DatabaseParam::String(photo.name.clone()),
+                DatabaseParam::String(time_string),
+                DatabaseParam::Usize(photo.width),
+                DatabaseParam::Usize(photo.height),
+                DatabaseParam::Usize(photo.filesize),
+                DatabaseParam::F64(latitude),
+                DatabaseParam::F64(longitude),
+                DatabaseParam::F64(altitude)
+            ])).await?;
 
-    let (row_id, _) = database.insert(sql::INSERT_ALBUM, DatabaseParams::new(vec![
-        DatabaseParam::String(photo.id),
-        DatabaseParam::String(photo.name),
-        DatabaseParam::String(time_string),
-        DatabaseParam::Usize(photo.width),
-        DatabaseParam::Usize(photo.height),
-        DatabaseParam::Usize(photo.filesize),
-        DatabaseParam::F64(latitude),
-        DatabaseParam::F64(longitude),
-        DatabaseParam::F64(altitude)
-    ])).await?;
-
-    Ok(row_id)
+            photo.id = row_id;
+            Ok(photo)
+        }
+    }
 }
 
 /// Insert an entry tagging a photo as part of an album
@@ -84,7 +123,7 @@ pub async fn insert_entry(database: DataLink, album_id: usize, photo_id: usize) 
     Ok(row_id)
 }
 
-pub fn parse_row_into_photo(row: Vec<DatabaseParam>) -> Option<(usize, PhotoFile)> {
+pub fn parse_row_into_photo(row: Vec<DatabaseParam>) -> Option<Photo> {
     let mut iterator = row.into_iter();
     let id = iterator.next()?.usize();
     let onedrive_id = iterator.next()?.string();
@@ -119,9 +158,10 @@ pub fn parse_row_into_photo(row: Vec<DatabaseParam>) -> Option<(usize, PhotoFile
         )
     };
 
-    Some((id,
-        PhotoFile {
-            id: onedrive_id,
+    Some(
+        Photo {
+            id,
+            onedrive_id,
             name,
             creation_date,
             width,
@@ -129,11 +169,23 @@ pub fn parse_row_into_photo(row: Vec<DatabaseParam>) -> Option<(usize, PhotoFile
             filesize,
             location
         }
-    ))
+    )
+}
+
+pub fn parse_row_into_album(row: Vec<DatabaseParam>) -> Option<Album> {
+    let mut iterator = row.into_iter();
+    let id = iterator.next()?.usize();
+    let onedrive_id = iterator.next()?.string();
+    let name = iterator.next()?.string();
+    let share_link = iterator.next()?.string();
+
+    Some(Album {
+        id, onedrive_id, name, share_link
+    })
 }
 
 /// Selects photos in album
-pub async fn select_photos_in_album(database: DataLink, album_id: usize) -> Res<Vec<(usize, PhotoFile)>> {
+pub async fn select_photos_in_album(database: DataLink, album_id: usize) -> Res<Vec<Photo>> {
     Ok(database.query_map(sql::SELECT_PHOTOS_BY_ALBUM_ID, DatabaseParams::single(DatabaseParam::Usize(album_id)))
         .await?
         .into_iter()
@@ -142,10 +194,19 @@ pub async fn select_photos_in_album(database: DataLink, album_id: usize) -> Res<
 }
 
 /// Select all photos
-pub async fn select_all_photos(database: DataLink) -> Res<Vec<(usize, PhotoFile)>> {
+pub async fn select_all_photos(database: DataLink) -> Res<Vec<Photo>> {
     Ok(database.query_map(sql::SELECT_ALL_PHOTOS, DatabaseParams::empty())
         .await?
         .into_iter()
         .filter_map(parse_row_into_photo)
+        .collect())
+}
+
+/// Select all albums
+pub async fn select_albums(database: DataLink) -> Res<Vec<Album>> {
+    Ok(database.query_map(sql::SELECT_ALL_ALBUMS, DatabaseParams::empty())
+        .await?
+        .into_iter()
+        .filter_map(parse_row_into_album)
         .collect())
 }

@@ -6,7 +6,7 @@ use tokio::io::AsyncWriteExt;
 
 use crate::onedrive::api::AccessToken;
 use crate::error::Res;
-use crate::onedrive::get_album_children::PhotoFile;
+use crate::onedrive::get_album_children::Photo;
 
 const CONTENT_URL: &str = "https://graph.microsoft.com/v1.0/me/drive/items/";
 
@@ -17,7 +17,7 @@ pub enum DownloadError {
 
 pub async fn download_drive_item(
     access_token: AccessToken,
-    photo_file: PhotoFile,
+    photo_file: Photo,
     album_root_dir: PathBuf,
     album_id: String
 ) -> Res<PathBuf> {
@@ -30,7 +30,7 @@ pub async fn download_drive_item(
     let original_path = PathBuf::from(&photo_file.name);
     let extension = original_path.extension().ok_or(DownloadError::CouldNotParseExtension)?;
 
-    let file_path = directory.join(&photo_file.id).with_extension(extension);
+    let file_path = directory.join(&photo_file.onedrive_id).with_extension(extension);
     if file_path.exists() {
         return Ok(file_path);
     }

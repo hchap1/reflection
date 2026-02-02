@@ -11,7 +11,8 @@ pub const CREATE_ALBUM_TABLE: &str = "
     CREATE TABLE IF NOT EXISTS Albums (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         onedrive_id TEXT UNIQUE,
-        name TEXT NOT NULL
+        name TEXT NOT NULL,
+        share_link TEXT NOT NULL
     );
 ";
 
@@ -79,9 +80,11 @@ pub const INSERT_ALBUM: &str = "
     INSERT INTO Albums (
         id,
         onedrive_id,
-        name
+        name,
+        share_link
     ) VALUES (
         NULL,
+        ?,
         ?,
         ?
     );
@@ -127,4 +130,12 @@ pub const SELECT_ALL_ALBUMS: &str = "
 
 pub const SELECT_ALL_PHOTOS: &str = "
     SELECT * FROM Photos;
+";
+
+pub const SELECT_ALBUM_BY_ID: &str = "
+    SELECT * FROM Albums WHERE id = ?;
+";
+
+pub const SELECT_PHOTO_BY_ID: &str = "
+    SELECT * FROM Photos WHERE id = ?;
 ";
