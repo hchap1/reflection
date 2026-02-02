@@ -4,6 +4,7 @@ use rusqlite_async::database::Database;
 
 use crate::authentication::oauth2::api::TokenSet;
 use crate::authentication::oauth2::wrapper::authenticate;
+use crate::database::interface;
 use crate::directories::create::Directories;
 use crate::error::Error;
 use crate::frontend::message::Global;
@@ -111,7 +112,17 @@ impl Application {
                     Global::AuthenticationComplete(tokenset, drivedata) => {
                         self.tokenset = Some(tokenset);
                         self.drivedata = Some(drivedata);
-                        Task::none()
+                        Task::future(interface::select_albums(self.database.derive()))
+                            .then(|res|
+                                match res {
+                                    Ok(albums) => Task::batch(
+                                        albums.into_iter()
+                                            .map(|album| Task::done(SelectAlbumMessage::AddAlbum(album).into()))
+                                    ),
+
+                                    Err(error) => Task::done(error.into())
+                                }
+                            )
                     }
                 }
             },
