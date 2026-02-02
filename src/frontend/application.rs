@@ -42,7 +42,7 @@ impl Application {
     pub fn new() -> Self {
 
         let directories = Directories::create_or_load().expect("[CRITICAL ERROR] Unable to find suitable directories location.");
-        let (database, error_handle) = Database::new(directories.root);
+        let (database, error_handle) = Database::new(directories.root.clone());
 
         Self {
             database,
