@@ -13,6 +13,7 @@ use crate::frontend::pages::select_album::SelectAlbumPage;
 use crate::frontend::pages::select_album::SelectAlbumMessage;
 use crate::frontend::pages::Pages;
 use crate::onedrive::api::AccessToken;
+use crate::onedrive::download::download_drive_item;
 use crate::onedrive::get_album_children::new_album;
 use crate::onedrive::get_drive::DriveData;
 
@@ -24,6 +25,7 @@ pub enum ApplicationError {
 pub struct Application {
     database: Database,
     database_error_output: Receiver<rusqlite_async::error::Error>,
+    directories: Directories,
 
     // Authentication
     tokenset: Option<TokenSet>,
@@ -44,6 +46,7 @@ impl Application {
         Self {
             database,
             database_error_output: error_handle,
+            directories,
             tokenset: None,
             drivedata: None,
             active_page: Pages::SelectAlbum,
@@ -126,6 +129,19 @@ impl Application {
                         self.tokenset = Some(tokenset);
                         self.drivedata = Some(drivedata);
                         Task::none()
+                    }
+
+                    Global::Download(photo, album_id) => {
+                        let access_token = match self.tokenset.as_ref() {
+                            Some(tokenset) => AccessToken::new(tokenset.access_token.clone()),
+                            None => return Task::done(Error::from(ApplicationError::NotAuthenticated).into())
+                        };
+
+                        Task::future(download_drive_item(access_token, photo, self.directories.albums.clone(), album_id))
+                            .then(|res| match res {
+                                Ok(_) => Task::none(),
+                                Err(error) => Task::done(error.into())
+                            })
                     }
                 }
             },

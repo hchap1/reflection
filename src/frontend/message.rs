@@ -34,7 +34,7 @@ pub enum Global {
     Authenticate,
     AuthenticationComplete(TokenSet, DriveData),
     AddNewAlbum(String),
-    Download(Photo)
+    Download(Photo, String)
 }
 
 message_enum! {

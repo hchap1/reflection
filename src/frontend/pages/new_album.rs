@@ -43,9 +43,10 @@ impl NewAlbumPage {
     pub fn update(&mut self, message: NewAlbumMessage) -> Task<Message> {
         match message {
             NewAlbumMessage::Display(album, photos) => {
+                let album_id = album.onedrive_id.clone();
                 self.album = Some(album);
                 self.photos = photos;
-                Task::batch(self.photos.iter().map(|photo| Task::done(Global::Download(photo.clone()).into())))
+                Task::batch(self.photos.iter().map(|photo| Task::done(Global::Download(photo.clone(), album_id.clone()).into())))
             }
         }
     }
