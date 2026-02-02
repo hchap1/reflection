@@ -20,5 +20,5 @@ rusqlite-async = "0.1.1"
 directories = "6.0.0"
 chrono = "0.4.43"
 futures-util = "0.3.31"
-iced = { version = "0.14.0", features = ["tokio", "image"] }
+iced = { version = "0.14.0", features = ["tokio", "image", "advanced"] }
 image = "*"

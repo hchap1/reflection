@@ -8,13 +8,13 @@ use crate::{frontend::message::Message, onedrive::get_album_children::Photo};
 pub struct PhotoWidget;
 
 impl PhotoWidget {
-    pub fn list<'a>(photo: &'a Photo, thumbnail: &'a Option<Handle>) -> Container<'a, Message> {
+    pub fn list<'a>(photo: &'a Photo, thumbnail: Option<&'a Handle>) -> Container<'a, Message> {
         Container::new(
             Row::new()
                 .spacing(10)
                 .padding(10)
                 .push(
-                    thumbnail.as_ref().map(|thumbnail| image(thumbnail))
+                    thumbnail.as_ref().map(|thumbnail| image(*thumbnail))
                 ).push(
                     Column::new()
                         .spacing(10)

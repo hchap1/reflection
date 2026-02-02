@@ -1,8 +1,11 @@
+use std::collections::HashMap;
+use std::path::PathBuf;
+
 use iced::Task;
 use iced::widget::Column;
 use iced::widget::Scrollable;
-use iced::widget::image::Handle;
 use iced::widget::text;
+use iced::advanced::image::Handle;
 
 use crate::frontend::message::Global;
 use crate::frontend::message::Message;
@@ -12,17 +15,20 @@ use crate::onedrive::get_album_children::Photo;
 
 #[derive(Debug, Clone)]
 pub enum BrowseAlbumMessage {
-    Display(Album, Vec<Photo>)
+    Display(Album, Vec<Photo>),
+    Thumbnail(String, PathBuf)
 }
 
 #[derive(Default)]
 pub struct BrowseAlbumPage {
     album: Option<Album>,
     photos: Vec<Photo>,
-    thumbnails: Vec<Option<Handle>>
+    thumbnails: HashMap<String, Handle>
 }
 
 impl BrowseAlbumPage {
+
+    #[allow(mismatched_lifetime_syntaxes)]
     pub fn view(&self) -> Column<Message> {
         Column::new()
             .spacing(10)
@@ -35,7 +41,7 @@ impl BrowseAlbumPage {
                 self.album.as_ref().map(|album| text(&album.share_link))
             ).push(
                 Scrollable::new(
-                    Column::from_iter(self.photos.iter().map(|photo| PhotoWidget::list(photo, &None).into()))
+                    Column::from_iter(self.photos.iter().map(|photo| PhotoWidget::list(photo, self.thumbnails.get(&photo.onedrive_id)).into()))
                 )
             )
     }
@@ -47,6 +53,11 @@ impl BrowseAlbumPage {
                 self.album = Some(album);
                 self.photos = photos;
                 Task::batch(self.photos.iter().map(|photo| Task::done(Global::Download(photo.clone(), album_id.clone()).into())))
+            }
+
+            BrowseAlbumMessage::Thumbnail(onedrive_id, image) => {
+                self.thumbnails.insert(onedrive_id, Handle::from_path(image));
+                Task::none()
             }
         }
     }
