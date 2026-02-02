@@ -11,6 +11,9 @@ pub enum DatabaseInterfaceError {
 /// Create the tables without checking for success. If this fails, later DB calls will indicate.
 pub fn create_tables(database: DataLink) -> Res<()> {
     database.execute(sql::CREATE_TOKEN_TABLE, DatabaseParams::empty())?;
+    database.execute(sql::CREATE_ALBUM_TABLE, DatabaseParams::empty())?;
+    database.execute(sql::CREATE_PHOTO_TABLE, DatabaseParams::empty())?;
+    database.execute(sql::CREATE_ENTRY_TABLE, DatabaseParams::empty())?;
     Ok(())
 }
 

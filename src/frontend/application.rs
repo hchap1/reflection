@@ -46,6 +46,8 @@ impl Application {
         let directories = Directories::create_or_load().expect("[CRITICAL ERROR] Unable to find suitable directories location.");
         let (database, error_handle) = Database::new(directories.root.clone());
 
+        interface::create_tables(database.derive()).expect("[CRITICAL ERROR] Unable to create database tables.");
+
         Self {
             database,
             database_error_output: error_handle,
