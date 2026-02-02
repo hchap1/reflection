@@ -4,6 +4,7 @@ use iced::widget::Scrollable;
 use iced::widget::text;
 
 use crate::frontend::message::Message;
+use crate::frontend::widgets::photo_widget::PhotoWidget;
 use crate::onedrive::get_album_children::Album;
 use crate::onedrive::get_album_children::Photo;
 
@@ -31,7 +32,7 @@ impl NewAlbumPage {
                 self.album.as_ref().map(|album| text(&album.share_link))
             ).push(
                 Scrollable::new(
-                    Column::from_iter(self.photos.iter().map(|photo| PhotoWidget::list(photo).into()))
+                    Column::from_iter(self.photos.iter().map(|photo| PhotoWidget::list(photo, &None).into()))
                 )
             )
     }

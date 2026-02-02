@@ -3554,6 +3554,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "iced",
+ "image",
  "open",
  "rand",
  "reqwest",

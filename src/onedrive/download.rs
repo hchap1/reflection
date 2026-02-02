@@ -52,5 +52,24 @@ pub async fn download_drive_item(
         file.write_all(&bytes).await?;
     }
 
+    let thumbnail_path = match (file_path.parent(), file_path.extension(), file_path.file_prefix()) {
+        (Some(parent), Some(extension), Some(name)) => {
+            let name = name.to_string_lossy().to_string();
+            let extension = extension.to_string_lossy().to_string();
+            Some(parent.join(format!("{name}-thumbnail.{extension}")))
+        }
+        _ => None
+    };
+
+    if let Some(thumbnail_path) = thumbnail_path {
+        let file_path_clone = file_path.clone();
+        tokio::task::spawn_blocking(move || {
+            if let Ok(img) = image::open(&file_path_clone) {
+                let thumb = img.resize(128, 128, image::imageops::FilterType::Lanczos3);
+                let _ = thumb.save(&thumbnail_path);
+            }
+        }).await?;
+    };
+
     Ok(file_path)
 }
