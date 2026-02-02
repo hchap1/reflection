@@ -26,18 +26,26 @@ pub async fn get_existant_path(photo: Photo, album_id: String, album_root_dir: P
     let extension = original_path.extension()?;
     let file_path = directory.join(&photo.onedrive_id).with_extension(extension);
 
-    Some(file_path)
+    match file_path.exists() {
+        true => Some(file_path),
+        false => None
+    }
 }
 
 pub async fn get_existant_thumbnail(photo: Photo, album_id: String, album_root_dir: PathBuf) -> Option<PathBuf> {
     let file_path = get_existant_path(photo.clone(), album_id.clone(), album_root_dir.clone()).await?;
-    match (file_path.parent(), file_path.extension(), file_path.file_prefix()) {
+    let file_path = match (file_path.parent(), file_path.extension(), file_path.file_prefix()) {
         (Some(parent), Some(extension), Some(name)) => {
             let name = name.to_string_lossy().to_string();
             let extension = extension.to_string_lossy().to_string();
-            Some(parent.join(format!("{name}-thumbnail.{extension}")))
-        }
-        _ => None
+            parent.join(format!("{name}-thumbnail.{extension}"))
+        },
+        _ => return None
+    };
+
+    match file_path.exists() {
+        true => Some(file_path),
+        false => None
     }
 }
 

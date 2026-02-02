@@ -171,7 +171,7 @@ impl Application {
                                     let datalink = self.database.derive();
                                     Task::batch(
                                         contents.into_iter()
-                                            .map(|photo| Task::done(Global::Download(photo, album.onedrive_id.clone()).into()))
+                                            .map(|photo| Task::done())
                                     )
                                 }),
                                 Err(error) => Task::done(error.into())
