@@ -118,7 +118,7 @@ pub async fn insert_photo(database: DataLink, mut photo: Photo) -> Res<Photo> {
 
 /// Insert an entry tagging a photo as part of an album
 pub async fn insert_entry(database: DataLink, album_id: usize, photo_id: usize) -> Res<usize> {
-    let (row_id, _) = database.insert(sql::INSERT_ALBUM, DatabaseParams::new(vec![
+    let (row_id, _) = database.insert(sql::INSERT_ENTRY, DatabaseParams::new(vec![
         DatabaseParam::Usize(album_id),
         DatabaseParam::Usize(photo_id)
     ])).await?;
