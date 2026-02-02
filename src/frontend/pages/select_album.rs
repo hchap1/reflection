@@ -11,6 +11,13 @@ pub struct SelectAlbumPage {
 }
 
 impl SelectAlbumPage {
+
+    pub fn new() -> Self {
+        Self {
+
+        }
+    }
+
     pub fn view(&self) -> Scrollable<Message> {
 
     }
