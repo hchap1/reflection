@@ -165,7 +165,7 @@ impl Application {
 
                     Global::BrowseAlbum(album_sql_id) => {
                         let datalink = self.database.derive();
-                        Task::future(interface::select_photos_in_album(datalink, album_sql_id))
+                        Task::done(Global::Load(Pages::BrowseAlbum).into()).chain(Task::future(interface::select_photos_in_album(datalink, album_sql_id))
                             .then(|res| match res {
                                 Ok((album, contents)) => Task::done(BrowseAlbumMessage::Display(album.clone(), contents.clone()).into()).chain({
                                     Task::batch(
@@ -175,6 +175,7 @@ impl Application {
                                 }),
                                 Err(error) => Task::done(error.into())
                             })
+                        )
                     }
                 }
             },

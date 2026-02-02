@@ -42,6 +42,7 @@ pub async fn download_drive_item(
     };
 
     if file_path.exists() {
+        println!("Already exists!");
         if let Some(thumbnail_path) = thumbnail_path {
             if thumbnail_path.exists() {
                 return Ok((file_path, Some(thumbnail_path)));

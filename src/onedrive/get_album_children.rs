@@ -7,7 +7,7 @@ use rusqlite_async::database::DataLink;
 use serde::{Deserialize, Serialize};
 use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
 
-use crate::database::interface::{insert_album, insert_photo, select_albums};
+use crate::database::interface::{insert_album, insert_entry, insert_photo, select_albums};
 use crate::onedrive::api::{AccessToken, make_request};
 use crate::error::{Error, Res};
 
@@ -121,7 +121,7 @@ pub async fn new_album(access_token: AccessToken, drive_id: String, share_link: 
 
 pub async fn check_album(access_token: AccessToken, drive_id: String, album: Album, database: DataLink) -> Res<(Album, Vec<Photo>)> {
     let (error_send, error_recv) = unbounded();
-    let stream = stream::iter(make_request::<AlbumContentsResponse>(
+    let stream: Vec<Photo> = stream::iter(make_request::<AlbumContentsResponse>(
         &format!(
             "{READ_CONTENTS_URL}{}/items/{}/children",
             drive_id,
@@ -146,6 +146,10 @@ pub async fn check_album(access_token: AccessToken, drive_id: String, album: Alb
 
     while let Ok(error) = error_recv.try_recv() {
         eprintln!("SQL Error: {error:?}");
+    }
+
+    for photo in &stream {
+        insert_entry(database.clone(), album.id, photo.id).await?;
     }
 
     Ok((
