@@ -10,6 +10,7 @@ use crate::authentication::callback::server::ServerError;
 use crate::database::interface::DatabaseInterfaceError;
 use crate::directories::create::DirectoryError;
 use crate::authentication::oauth2::api::OAUTH2ApiError;
+use crate::frontend::application::ApplicationError;
 use crate::onedrive::api::OnedriveError;
 use crate::onedrive::download::DownloadError;
 
@@ -88,6 +89,7 @@ error_enum! {
         DatabaseInterfaceError,
         DirectoryError,
         OnedriveError,
-        DownloadError
+        DownloadError,
+        ApplicationError
     }
 }

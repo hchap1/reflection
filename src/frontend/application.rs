@@ -2,11 +2,19 @@ use async_channel::Receiver;
 use iced::{widget::text, Element, Task};
 use rusqlite_async::database::Database;
 
-use crate::{authentication::oauth2::wrapper::authenticate, directories::create::Directories, error::Error, frontend::{message::{Global, Message}, pages::{select_album::SelectAlbumPage, Pages}}};
+use crate::{authentication::oauth2::{api::TokenSet, wrapper::authenticate}, directories::create::Directories, error::Error, frontend::{message::{Global, Message}, pages::{new_album, select_album::{SelectAlbumMessage, SelectAlbumPage}, Pages}}, onedrive::{api::AccessToken, get_album_children::{self, new_album}, get_drive::DriveData}};
+
+pub enum ApplicationError {
+    NotAuthenticated
+}
 
 pub struct Application {
     database: Database,
     database_error_output: Receiver<rusqlite_async::error::Error>,
+
+    // Authentication
+    tokenset: Option<TokenSet>,
+    drivedata: Option<DriveData>,
 
     // Pages
     active_page: Pages,
@@ -23,6 +31,8 @@ impl Application {
         Self {
             database,
             database_error_output: error_handle,
+            tokenset: None,
+            drivedata: None,
             active_page: Pages::SelectAlbum,
             select_album_page: SelectAlbumPage::new()
         }
@@ -59,6 +69,32 @@ impl Application {
                     }
 
                     Global::AddNewAlbum(sharelink) => {
+                        match (self.tokenset.as_ref(), self.drivedata.as_ref()) {
+                            (Some(tokenset), Some(drivedata)) => {
+                                let access_token = tokenset.access_token.clone();
+                                let drive_id = drivedata.id.clone();
+                                let datalink = self.database.derive();
+                                Task::future(new_album(AccessToken::new(access_token), drive_id, sharelink, datalink))
+                                    .then(|res|
+                                        match res {
+                                            Ok((album, contents)) => {
+                                                Task::batch(vec![
+                                                    Task::done(SelectAlbumMessage::AddAlbum(album.clone()).into()),
+                                                    // TODO load new album confirm page with given information
+                                                    Task::done()
+                                                ])
+                                            }
+
+                                            Err(error) => Task::done(error.into())
+                                        }
+                                    )
+                            }
+
+                            _ => Task::done(Error::from(ApplicationError::NotAuthenticated).into())
+                        }
+                    }
+
+                    Global::AuthenticationComplete(tokenset, drivedata) => {
 
                     }
                 }
