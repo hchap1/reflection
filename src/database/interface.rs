@@ -80,11 +80,14 @@ pub async fn insert_album(database: DataLink, mut album: Album) -> Res<Album> {
 
 /// Insert a new photo record
 pub async fn insert_photo(database: DataLink, mut photo: Photo) -> Res<Photo> {
+
+    println!("INSERTING PHOTO: {}", photo.name);
     
     // Check if the photo already exists
     match select_photo_by_id(database.clone(), photo.onedrive_id.clone()).await? {
         Some(updated_photo) => Ok(updated_photo),
         None => {
+            println!("Didn't exist yet! Parsing creation_date.");
             let time_string = match photo.creation_date {
                 Some(date) => {
                     let datetime: DateTime<Utc> = date.into();
@@ -93,12 +96,16 @@ pub async fn insert_photo(database: DataLink, mut photo: Photo) -> Res<Photo> {
                 None => String::from("NONE")
             };
 
+            println!("Creation date parsed!");
+
             let (latitude, longitude, altitude) = match photo.location.as_ref() {
                 Some(location) => (location.latitude, location.longitude, location.altitude.unwrap_or(0f64)),
                 None => (0f64, 0f64, 0f64)
             };
 
-            let (row_id, _) = database.insert(sql::INSERT_ALBUM, DatabaseParams::new(vec![
+            println!("Actually requesting information!");
+
+            let (row_id, _) = database.insert(sql::INSERT_PHOTO, DatabaseParams::new(vec![
                 DatabaseParam::String(photo.onedrive_id.clone()),
                 DatabaseParam::String(photo.name.clone()),
                 DatabaseParam::String(time_string),
@@ -109,6 +116,8 @@ pub async fn insert_photo(database: DataLink, mut photo: Photo) -> Res<Photo> {
                 DatabaseParam::F64(longitude),
                 DatabaseParam::F64(altitude)
             ])).await?;
+            
+            println!("Insertion complete!");
 
             photo.id = row_id;
             Ok(photo)

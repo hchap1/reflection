@@ -63,7 +63,7 @@ pub const INSERT_PHOTO: &str = "
         longitude,
         altitude
     ) VALUES (
-        NULL,
+        null,
         ?,
         ?,
         ?,
@@ -83,7 +83,7 @@ pub const INSERT_ALBUM: &str = "
         name,
         share_link
     ) VALUES (
-        NULL,
+        null,
         ?,
         ?,
         ?

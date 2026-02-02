@@ -1,4 +1,5 @@
 use std::time::SystemTime;
+use async_channel::unbounded;
 use chrono::{DateTime, Utc};
 
 use futures_util::{StreamExt, stream};
@@ -8,7 +9,7 @@ use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
 
 use crate::database::interface::{insert_album, insert_photo, select_albums};
 use crate::onedrive::api::{AccessToken, make_request};
-use crate::error::Res;
+use crate::error::{Error, Res};
 
 const READ_SHARE_URL: &str = "https://graph.microsoft.com/v1.0/shares/u!";
 const READ_CONTENTS_URL: &str = "https://graph.microsoft.com/v1.0/drives/";
@@ -117,8 +118,10 @@ pub async fn new_album(access_token: AccessToken, drive_id: String, share_link: 
     check_album(access_token, drive_id, album, database).await
 }
 
-pub async fn check_album(access_token: AccessToken, drive_id: String, album: Album, database: DataLink) -> Res<(Album, Vec<Photo>)> {
+// TODO PAGINATION
 
+pub async fn check_album(access_token: AccessToken, drive_id: String, album: Album, database: DataLink) -> Res<(Album, Vec<Photo>)> {
+    let (error_send, error_recv) = unbounded();
     let stream = stream::iter(make_request::<AlbumContentsResponse>(
         &format!(
             "{READ_CONTENTS_URL}{}/items/{}/children",
@@ -132,9 +135,19 @@ pub async fn check_album(access_token: AccessToken, drive_id: String, album: Alb
         .value
         .into_iter()
         .map(Photo::from_response))
-        .filter_map(async |photo| insert_photo(database.clone(), photo).await.ok())
+        .filter_map(async |photo| match insert_photo(database.clone(), photo).await {
+            Ok(photo) => Some(photo),
+            Err(error) => {
+                let _ = error_send.send(error).await;
+                None
+            }
+        })
         .collect()
         .await;
+
+    while let Ok(error) = error_recv.try_recv() {
+        eprintln!("SQL Error: {error:?}");
+    }
 
     Ok((
         album,
