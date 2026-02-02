@@ -29,7 +29,9 @@ macro_rules! message_enum {
 pub enum Global {
     None,
     // Called to start async tasks to authenticate, using either database or oauth2
-    Authenticate
+    Authenticate,
+
+    AddNewAlbum(String),
 }
 
 message_enum! {

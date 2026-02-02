@@ -1,10 +1,11 @@
 use iced::{widget::{text_input, Column, Row, Scrollable}, Task};
 use iced::widget::text;
 use iced::widget::button;
-use crate::{frontend::{message::Message, widgets::album_widget::AlbumWidget}, onedrive::get_album_children::Album};
+use crate::{frontend::{message::{Global, Message}, widgets::album_widget::AlbumWidget}, onedrive::get_album_children::Album};
 
+#[derive(Debug, Clone)]
 pub enum SelectAlbumMessage {
-    Refresh,
+    AddAlbum(Album),
     AddNew,
     Input(String)
 }
@@ -34,6 +35,21 @@ impl SelectAlbumPage {
     }
 
     pub fn update(&mut self, message: SelectAlbumMessage) -> Task<Message> {
+        match message {
+            SelectAlbumMessage::AddAlbum(album) => {
+                self.albums.push(album);
+                Task::none()
+            }
 
+            SelectAlbumMessage::Input(input) => {
+                self.input = input;
+                Task::none()
+            }
+
+            SelectAlbumMessage::AddNew => {
+                let sharelink = std::mem::take(&mut self.input);
+                Task::done(Global::AddNewAlbum(sharelink).into())
+            }
+        }
     }
 }
