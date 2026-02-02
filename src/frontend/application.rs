@@ -58,8 +58,8 @@ impl Application {
         }
     }
 
+    #[allow(mismatched_lifetime_syntaxes)]
     pub fn view(&self) -> Element<Message> {
-
         match self.active_page {
             Pages::SelectAlbum => self.select_album_page.view().into(),
             Pages::PhotoDisplay => text("404").into(),
@@ -115,7 +115,8 @@ impl Application {
                                             Ok((album, contents)) => {
                                                 Task::batch(vec![
                                                     Task::done(SelectAlbumMessage::AddAlbum(album.clone()).into()),
-                                                    Task::done(BrowseAlbumMessage::Display(album, contents).into())
+                                                    Task::done(BrowseAlbumMessage::Display(album, contents).into()),
+                                                    Task::done(Global::Load(Pages::BrowseAlbum).into())
                                                 ])
                                             }
 
