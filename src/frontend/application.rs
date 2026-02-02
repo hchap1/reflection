@@ -69,18 +69,31 @@ impl Application {
 
                     Global::Authenticate => {
                         let datalink = self.database.derive();
-                        Task::future(authenticate(datalink))
-                            .map(|res|
-                                match res {
-                                    Ok((tokenset, drivedata)) => {
-                                        Global::AuthenticationComplete(tokenset, drivedata).into()
-                                    }
+                        Task::batch(vec![
+                            Task::future(authenticate(datalink))
+                                .map(|res|
+                                    match res {
+                                        Ok((tokenset, drivedata)) => {
+                                            Global::AuthenticationComplete(tokenset, drivedata).into()
+                                        }
 
-                                    Err(error) => {
-                                        error.into()
+                                        Err(error) => {
+                                            error.into()
+                                        }
                                     }
-                                }
-                            )
+                                ),
+                            Task::future(interface::select_albums(self.database.derive()))
+                                .then(|res|
+                                    match res {
+                                        Ok(albums) => Task::batch(
+                                            albums.into_iter()
+                                                .map(|album| Task::done(SelectAlbumMessage::AddAlbum(album).into()))
+                                        ),
+
+                                        Err(error) => Task::done(error.into())
+                                    }
+                                )
+                        ])
                     }
 
                     Global::AddNewAlbum(sharelink) => {
@@ -112,17 +125,7 @@ impl Application {
                     Global::AuthenticationComplete(tokenset, drivedata) => {
                         self.tokenset = Some(tokenset);
                         self.drivedata = Some(drivedata);
-                        Task::future(interface::select_albums(self.database.derive()))
-                            .then(|res|
-                                match res {
-                                    Ok(albums) => Task::batch(
-                                        albums.into_iter()
-                                            .map(|album| Task::done(SelectAlbumMessage::AddAlbum(album).into()))
-                                    ),
-
-                                    Err(error) => Task::done(error.into())
-                                }
-                            )
+                        Task::none()
                     }
                 }
             },
