@@ -167,9 +167,10 @@ impl Application {
                         let datalink = self.database.derive();
                         Task::future(interface::select_photos_in_album(datalink, album_sql_id))
                             .then(|res| match res {
-                                Ok(contents) => Task::batch(vec![
+                                Ok((album, contents)) => Task::batch(vec![
                                     Task::done(BrowseAlbumMessage::Display(album, contents).into())
-                                ])
+                                ]),
+                                Err(error) => Task::done(error.into())
                             })
                     }
                 }
