@@ -1,4 +1,4 @@
-use crate::frontend::pages::select_album::SelectAlbumMessage;
+use crate::{authentication::oauth2::api::TokenSet, error::Error, frontend::pages::select_album::SelectAlbumMessage, onedrive::get_drive::DriveData};
 
 macro_rules! message_enum {
     (
@@ -30,6 +30,7 @@ pub enum Global {
     None,
     // Called to start async tasks to authenticate, using either database or oauth2
     Authenticate,
+    AuthenticationComplete(TokenSet, DriveData),
 
     AddNewAlbum(String),
 }
@@ -37,6 +38,7 @@ pub enum Global {
 message_enum! {
     pub enum Message {
         Global,
-        SelectAlbumMessage
+        SelectAlbumMessage,
+        Error
     }
 }
