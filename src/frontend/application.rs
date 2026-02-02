@@ -167,21 +167,46 @@ impl Application {
                     Global::BrowseAlbum(album_sql_id) => {
                         let datalink = self.database.derive();
                         let album_root_dir = self.directories.albums.clone();
-                        Task::done(Global::Load(Pages::BrowseAlbum).into()).chain(Task::future(interface::select_photos_in_album(datalink, album_sql_id))
-                            .then(move |res| match res {
-                                Ok((album, contents)) => Task::done(BrowseAlbumMessage::Display(album.clone(), contents.clone()).into()).chain({
-                                    let album_id = album.onedrive_id;
-                                    Task::batch(
-                                        contents.into_iter()
-                                            .map(|photo| Task::future(get_existant_thumbnail(photo.clone(), album_id.clone(), album_root_dir.clone())).map(move |res| match res {
-                                                Some(path) => BrowseAlbumMessage::Thumbnail(photo.onedrive_id.clone(), path).into(),
-                                                None => Global::None.into()
-                                            }))
-                                    )
-                                }),
-                                Err(error) => Task::done(error.into())
-                            })
-                        )
+
+                        Task::done(Global::Load(Pages::BrowseAlbum).into())
+                            .chain(
+                                Task::future(interface::select_photos_in_album(datalink, album_sql_id))
+                                    .then(move |res| match res {
+                                        Ok((album, contents)) => {
+                                            let album_id = album.onedrive_id.clone();
+                                            let album_root_dir = album_root_dir.clone();
+
+                                            Task::done(
+                                                BrowseAlbumMessage::Display(album.clone(), contents.clone()).into()
+                                            )
+                                            .chain(
+                                                Task::batch(
+                                                    contents.into_iter().map(move |photo| {
+                                                        let album_id = album_id.clone();
+                                                        let album_root_dir = album_root_dir.clone();
+
+                                                        Task::future(get_existant_thumbnail(
+                                                            photo.clone(),
+                                                            album_id.clone(),
+                                                            album_root_dir,
+                                                        ))
+                                                        .map(move |res| match res {
+                                                            Some(path) => {
+                                                                BrowseAlbumMessage::Thumbnail(
+                                                                    photo.onedrive_id.clone(),
+                                                                    path,
+                                                                )
+                                                                .into()
+                                                            }
+                                                            None => Global::Download(photo.clone(), album_id.clone()).into(),
+                                                        })
+                                                    }),
+                                                ),
+                                            )
+                                        }
+                                        Err(error) => Task::done(error.into()),
+                                    }),
+                            )
                     }
                 }
             },
