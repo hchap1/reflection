@@ -16,6 +16,7 @@ use crate::frontend::pages::select_album::SelectAlbumMessage;
 use crate::frontend::pages::Pages;
 use crate::onedrive::api::AccessToken;
 use crate::onedrive::download::download_drive_item;
+use crate::onedrive::download::get_existant_thumbnail;
 use crate::onedrive::get_album_children::new_album;
 use crate::onedrive::get_drive::DriveData;
 
@@ -165,13 +166,17 @@ impl Application {
 
                     Global::BrowseAlbum(album_sql_id) => {
                         let datalink = self.database.derive();
+                        let album_root_dir = self.directories.albums.clone();
                         Task::done(Global::Load(Pages::BrowseAlbum).into()).chain(Task::future(interface::select_photos_in_album(datalink, album_sql_id))
-                            .then(|res| match res {
+                            .then(move |res| match res {
                                 Ok((album, contents)) => Task::done(BrowseAlbumMessage::Display(album.clone(), contents.clone()).into()).chain({
-                                    let datalink = self.database.derive();
+                                    let album_id = album.onedrive_id;
                                     Task::batch(
                                         contents.into_iter()
-                                            .map(|photo| Task::done())
+                                            .map(|photo| Task::future(get_existant_thumbnail(photo.clone(), album_id.clone(), album_root_dir.clone())).map(move |res| match res {
+                                                Some(path) => BrowseAlbumMessage::Thumbnail(photo.onedrive_id.clone(), path).into(),
+                                                None => Global::None.into()
+                                            }))
                                     )
                                 }),
                                 Err(error) => Task::done(error.into())
