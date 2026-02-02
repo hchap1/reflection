@@ -9,6 +9,7 @@ use crate::directories::create::Directories;
 use crate::error::Error;
 use crate::frontend::message::Global;
 use crate::frontend::message::Message;
+use crate::frontend::pages::new_album::NewAlbumMessage;
 use crate::frontend::pages::select_album::SelectAlbumPage;
 use crate::frontend::pages::select_album::SelectAlbumMessage;
 use crate::frontend::pages::Pages;
@@ -111,8 +112,7 @@ impl Application {
                                             Ok((album, contents)) => {
                                                 Task::batch(vec![
                                                     Task::done(SelectAlbumMessage::AddAlbum(album.clone()).into()),
-                                                    // TODO load new album confirm page with given information
-                                                    Task::done()
+                                                    Task::done(NewAlbumMessage::Display(album, contents).into())
                                                 ])
                                             }
 
