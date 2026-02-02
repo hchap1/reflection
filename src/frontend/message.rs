@@ -1,4 +1,5 @@
 use crate::{authentication::oauth2::api::TokenSet, error::Error, frontend::pages::select_album::SelectAlbumMessage, onedrive::get_drive::DriveData};
+use crate::frontend::pages::new_album::NewAlbumMessage;
 
 macro_rules! message_enum {
     (
@@ -39,6 +40,7 @@ message_enum! {
     pub enum Message {
         Global,
         SelectAlbumMessage,
+        NewAlbumMessage,
         Error
     }
 }
