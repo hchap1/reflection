@@ -24,7 +24,8 @@ use crate::onedrive::get_drive::DriveData;
 pub enum ApplicationError {
     NotAuthenticated,
     NoSuchAlbum,
-    EndianFailure
+    EndianFailure,
+    NoEndpoint
 }
 
 pub struct Application {

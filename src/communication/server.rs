@@ -1,6 +1,9 @@
 use std::{io::{Read, Write}, net::{IpAddr, Ipv4Addr, TcpListener, TcpStream}, thread::{JoinHandle, spawn}};
-
 use async_channel::{Receiver, Sender, unbounded};
+use if_addrs::get_if_addrs;
+use mdns_sd::{ServiceDaemon, ServiceInfo};
+
+pub const PORT: u16 = 7878;
 
 use crate::{communication::NetworkMessage, error::{ChannelError, Res}, frontend::application::ApplicationError};
 
@@ -29,7 +32,10 @@ impl Server {
 
     fn run(output: Sender<NetworkMessage>, input: Receiver<NetworkMessage>, input_sender: Sender<NetworkMessage>) -> Res<()> {
 
-        let listener = TcpListener::bind((IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 7878))?;
+        let listener = TcpListener::bind((IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), PORT))?;
+        let (mdns_sender, mdns_receiver) = unbounded();
+
+        let mdns_thread = spawn(move || Self::advertise_service(mdns_receiver));
 
         while let Ok((tcp_stream, _)) = listener.accept() {
 
@@ -84,6 +90,44 @@ impl Server {
             client.write_all(&bytes)?;
         }
 
+
+        Ok(())
+    }
+
+    fn get_lan_ip() -> Res<IpAddr> {
+        for iface in get_if_addrs()? {
+            if !iface.is_loopback() && iface.ip().is_ipv4() {
+                return Ok(iface.ip())
+            }
+        }
+
+        Err(ApplicationError::NoEndpoint)?
+    }
+
+    fn advertise_service(shutdown_receiver: Receiver<()>) -> Res<()> {
+
+        let ip = Self::get_lan_ip()?;
+
+        let ip_string = ip.to_string();
+        let hostname = format!("{ip_string}.local");
+
+        let mdns = ServiceDaemon::new()?;
+        let service_type = "_reflection._tcp.local.";
+        let instance_name = "reflection";
+        let properties = [("version", "1.0")];
+
+        let service_info = ServiceInfo::new(
+            service_type,
+            instance_name,
+            &hostname,
+            ip,
+            PORT,
+            &properties[..]
+        )?;
+
+        mdns.register(service_info)?;
+        let _ = shutdown_receiver.recv_blocking();
+        mdns.shutdown()?;
 
         Ok(())
     }

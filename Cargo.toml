@@ -23,3 +23,5 @@ futures-util = "0.3.31"
 iced = { version = "0.14.0", features = ["tokio", "image", "advanced"] }
 image = "*"
 rkyv = "*"
+mdns-sd = "0.17.2"
+if-addrs = "0.14.0"
