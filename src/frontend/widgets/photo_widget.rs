@@ -1,7 +1,11 @@
+use std::time::UNIX_EPOCH;
+
 use chrono::{DateTime, Local};
-use iced::widget::{Container, Row, image::Handle};
 use iced::widget::{Column, image};
 use iced::widget::text;
+use iced::widget::Row;
+use iced::advanced::image::Handle;
+use iced::widget::Container;
 
 use crate::{frontend::message::Message, onedrive::get_album_children::Photo};
 
@@ -27,7 +31,8 @@ impl PhotoWidget {
                                 .padding(10)
                                 .push(
                                     photo.creation_date.map(|date| text({
-                                        let datetime: DateTime<Local> = date.into();
+                                        let time = UNIX_EPOCH + std::time::Duration::new(date, 0);
+                                        let datetime: DateTime<Local> = time.into();
                                         datetime.format("%Y-%m-%d %H:%M:%S").to_string()
                                     }))
                                 )

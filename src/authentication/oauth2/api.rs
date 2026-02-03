@@ -16,7 +16,7 @@ pub enum OAUTH2ApiError {
     POSTFailed
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct TokenSet {
     pub access_token: String,
     pub refresh_token: String,

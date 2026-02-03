@@ -1,4 +1,4 @@
-use std::time::SystemTime;
+use std::time::{SystemTime, UNIX_EPOCH};
 use async_channel::unbounded;
 use chrono::{DateTime, Utc};
 
@@ -9,7 +9,7 @@ use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
 
 use crate::database::interface::{insert_album, insert_entry, insert_photo, select_albums};
 use crate::onedrive::api::{AccessToken, make_request};
-use crate::error::{Error, Res};
+use crate::error::Res;
 
 const READ_SHARE_URL: &str = "https://graph.microsoft.com/v1.0/shares/u!";
 const READ_CONTENTS_URL: &str = "https://graph.microsoft.com/v1.0/drives/";
@@ -20,7 +20,7 @@ pub struct AlbumDriveItem {
     pub name: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct Album {
     pub id: usize,
     pub onedrive_id: String,
@@ -71,19 +71,19 @@ struct ResolutionData {
     width: usize
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct LocationData {
     pub altitude: Option<f64>,
     pub latitude: f64,
     pub longitude: f64
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct Photo {
     pub id: usize,
     pub onedrive_id: String,
     pub name: String,
-    pub creation_date: Option<SystemTime>,
+    pub creation_date: Option<u64>,
     pub width: usize,
     pub height: usize,
     pub filesize: usize,
@@ -98,7 +98,7 @@ impl Photo {
             name: response.name,
             creation_date: {
                 match response.creation_date.parse::<DateTime<Utc>>() {
-                    Ok(datetime) => Some(SystemTime::from(datetime)),
+                    Ok(datetime) => SystemTime::from(datetime).duration_since(UNIX_EPOCH).map(|x| x.as_secs()).ok(),
                     Err(_) => None
                 }
             },

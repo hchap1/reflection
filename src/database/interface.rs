@@ -86,10 +86,7 @@ pub async fn insert_photo(database: DataLink, mut photo: Photo) -> Res<Photo> {
         Some(updated_photo) => Ok(updated_photo),
         None => {
             let time_string = match photo.creation_date {
-                Some(date) => {
-                    let datetime: DateTime<Utc> = date.into();
-                    datetime.to_rfc3339()
-                },
+                Some(date) => date.to_string(),
                 None => String::from("NONE")
             };
 
@@ -141,9 +138,7 @@ pub fn parse_row_into_photo(row: Vec<DatabaseParam>) -> Option<Photo> {
 
     let creation_date = match time_string.as_str() {
         "NONE" => None,
-        encoded_time => {
-            Some(DateTime::parse_from_rfc3339(encoded_time).ok()?.with_timezone(&Utc).into())
-        }
+        encoded_time => encoded_time.parse::<u64>().ok()
     };
 
     let location = if raw_latitude == 0f64 && raw_longitude == 0f64 {

@@ -14,6 +14,7 @@ mod directories;
 mod authentication;
 mod onedrive;
 mod frontend;
+mod communication;
 
 fn main() -> iced::Result {
     iced::application(||
