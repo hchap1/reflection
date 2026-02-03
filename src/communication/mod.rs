@@ -1,4 +1,4 @@
-use rkyv::{Deserialize, Serialize, Archive};
+use rkyv::{Archive, Deserialize, Serialize};
 
 use crate::{authentication::oauth2::api::TokenSet, error::Res, onedrive::get_album_children::{Album, Photo}};
 
@@ -24,7 +24,11 @@ pub enum NetworkMessage {
 }
 
 impl NetworkMessage {
-    // pub fn to_bytes(&self) -> Res<Vec<u8>> {
+    pub fn to_bytes(&self) -> Res<Vec<u8>> {
+        Ok(rkyv::to_bytes::<rkyv::rancor::Error>(self)?.into_vec())
+    }
 
-    // }
+    pub fn from_bytes(bytes: &[u8]) -> Res<Self> {
+        Ok(rkyv::from_bytes::<Self, rkyv::rancor::Error>(bytes)?)
+    }
 }

@@ -20,6 +20,7 @@ type HyperError = hyper::Error;
 type ReqwestError = reqwest::Error;
 type SerdeJsonError = serde_json::Error;
 type DatabaseError = rusqlite_async::error::Error;
+type RancorError = rkyv::rancor::Error;
 
 macro_rules! error_enum {
     (
@@ -90,6 +91,7 @@ error_enum! {
         DirectoryError,
         OnedriveError,
         DownloadError,
-        ApplicationError
+        ApplicationError,
+        RancorError
     }
 }
