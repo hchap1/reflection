@@ -57,6 +57,9 @@ impl Server {
             while input.try_recv().is_ok() {}
         }
 
+        mdns_sender.send_blocking(()).map_err(ChannelError::from)?;
+        let _ = mdns_thread.join();
+
         Ok(())
     }
 
