@@ -5,7 +5,7 @@ use crate::{authentication::oauth2::api::TokenSet, error::Res, onedrive::get_alb
 pub mod server;
 pub mod client;
 
-#[derive(Serialize, Deserialize, Archive)]
+#[derive(Serialize, Deserialize, Archive, Clone, Debug)]
 pub enum NetworkMessage {
 
     // Client to server
@@ -21,6 +21,9 @@ pub enum NetworkMessage {
     ReturnAllAlbums(Vec<Album>),
     ReturnPhotosInAlbum(Vec<Photo>),
     Thumbnail(Vec<u8>),
+
+    // Dummy
+    TerminateThread
 }
 
 impl NetworkMessage {
