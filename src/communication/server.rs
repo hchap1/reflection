@@ -66,7 +66,7 @@ impl Server {
         Ok(())
     }
 
-    fn recv(mut client: TcpStream, output: Sender<NetworkMessage>) -> Res<()> {
+    pub fn recv(mut client: TcpStream, output: Sender<NetworkMessage>) -> Res<()> {
         let mut size_buf = vec![0u8; 4];
 
         loop {
@@ -80,7 +80,7 @@ impl Server {
         }
     }
 
-    fn send(mut client: TcpStream, input: Receiver<NetworkMessage>) -> Res<()> {
+    pub fn send(mut client: TcpStream, input: Receiver<NetworkMessage>) -> Res<()> {
         while let Ok(message) = input.recv_blocking() {
 
             if let NetworkMessage::TerminateThread = message {
