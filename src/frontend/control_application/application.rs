@@ -1,8 +1,11 @@
 use iced::{Background, Color, Length, Task};
-use iced::widget::{Column, Container, MouseArea, Row, Scrollable, Stack, button, image, stack};
+use iced::widget::{Column, Container, MouseArea, Row, Scrollable, Space, Stack, button, image, stack};
 use iced::advanced::image::Handle;
+use iced::widget::text;
 
+use crate::communication::NetworkMessage;
 use crate::communication::server::Server;
+use crate::frontend::colour::Colour;
 use crate::frontend::control_application::message::Message;
 use crate::onedrive::get_album_children::Album;
 
@@ -34,7 +37,8 @@ impl Application {
                     Scrollable::new(
                         Column::from_iter(self.albums
                             .iter()
-                            .map(|(album, handle)|
+                            .enumerate()
+                            .map(|(idx, (album, handle))|
                                 MouseArea::new(
                                     Row::new()
                                         .spacing(10)
@@ -42,13 +46,21 @@ impl Application {
                                         .push(
                                             Stack::new()
                                                 .push(match handle {
-                                                    Some(handle) => image(handle).width(128).height(128),
-                                                    None => Container::new()
-                                                        .width(Length::Fixed(128)).height(Length::Fixed(128))
-                                                        .style(iced::widget::container::Style::default().background(Background::Color(Colour::Gray)))
+                                                    Some(handle) => Container::new(image(handle).width(128).height(128)),
+                                                    None => Container::new(Space::new().width(Length::Fixed(128f32)).height(Length::Fixed(128f32)))
+                                                        .style(|_| iced::widget::container::Style::default().background(Background::Color(Colour::gray())))
                                                 })
+                                        ).push(
+                                            Column::new()
+                                                .spacing(10)
+                                                .push(text(&album.name))
+                                                .push(text(&album.onedrive_id))
                                         )
                                 )
+                                .on_enter(Message::Hover(idx))
+                                .on_exit(Message::Unhover(idx))
+                                .on_press(Message::OutgoingNetworkMessage(NetworkMessage::PlayAlbum(album.clone())))
+                                .into()
                             )
                         )
                     )

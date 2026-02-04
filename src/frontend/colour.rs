@@ -9,4 +9,5 @@ impl Colour {
     pub fn background() -> Color { color!(0x29292e) }
     pub fn foreground() -> Color { color!(0x3B3845) }
     pub fn accent() -> Color { color!(0x4C3F75) }
+    pub fn gray() -> Color { color!(0x222222) }
 }
