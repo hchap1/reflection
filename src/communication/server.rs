@@ -4,6 +4,9 @@ use if_addrs::get_if_addrs;
 use mdns_sd::{ServiceDaemon, ServiceInfo};
 
 pub const PORT: u16 = 7878;
+pub const SERVICE_TYPE: &str = "_reflection._tcp.local.";
+pub const INSTANCE_NAME: &str = "reflection";
+pub const PROPERTIES: [(&str, &str); 1] = [("version", "1.0")];
 
 use crate::{communication::NetworkMessage, error::{ChannelError, Res}, frontend::application::ApplicationError};
 
@@ -115,17 +118,14 @@ impl Server {
         let hostname = format!("{ip_string}.local");
 
         let mdns = ServiceDaemon::new()?;
-        let service_type = "_reflection._tcp.local.";
-        let instance_name = "reflection";
-        let properties = [("version", "1.0")];
 
         let service_info = ServiceInfo::new(
-            service_type,
-            instance_name,
+            SERVICE_TYPE,
+            INSTANCE_NAME,
             &hostname,
             ip,
             PORT,
-            &properties[..]
+            &PROPERTIES[..]
         )?;
 
         mdns.register(service_info)?;
