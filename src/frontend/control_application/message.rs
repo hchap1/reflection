@@ -12,4 +12,8 @@ pub enum Message {
     // Process messages to and from the display server
     IncomingNetworkMessage(NetworkMessage),
     OutgoingNetworkMessage(NetworkMessage),
+
+    // GUI
+    Hover(usize),
+    Unhover(usize),
 }

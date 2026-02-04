@@ -5,3 +5,4 @@ pub mod widgets;
 
 pub mod display_application;
 pub mod control_application;
+pub mod colour;
