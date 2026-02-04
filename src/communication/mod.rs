@@ -16,11 +16,14 @@ pub enum NetworkMessage {
     RequestAllAlbums,
     RequestPhotosInAlbum(Album),
     RequestThumbnails(Album),
+    RequestActiveAlbum,
 
     // Server to client
+    NewAlbum(Album),
     ReturnAllAlbums(Vec<Album>),
     ReturnPhotosInAlbum(Vec<Photo>),
     Thumbnail(Vec<u8>),
+    ReturnActiveAlbum(Option<Album>),
 
     // Dummy
     TerminateThread
