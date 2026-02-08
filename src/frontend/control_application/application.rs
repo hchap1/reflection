@@ -1,17 +1,17 @@
-use iced::{Background, Color, Length, Task};
+use iced::{Background, Length, Task};
 use iced::widget::{Column, Container, MouseArea, Row, Scrollable, Space, Stack, button, image, stack};
 use iced::advanced::image::Handle;
 use iced::widget::text;
 
+use crate::communication::client::Client;
 use crate::communication::NetworkMessage;
-use crate::communication::server::Server;
 use crate::frontend::colour::Colour;
 use crate::frontend::control_application::message::Message;
 use crate::onedrive::get_album_children::Album;
 
 #[derive(Default)]
 pub struct Application {
-    remote_connection: Option<Server>,
+    remote_connection: Option<Client>,
     albums: Vec<(Album, Option<Handle>)>,
     active_album: Option<Album>,
 }
@@ -64,11 +64,30 @@ impl Application {
                             )
                         )
                     )
+                ).push(
+                    Row::new()
+                        .spacing(10)
+                        .padding(10)
+                        .push(
+                            button(text("Authenticate"))
+                                .on_press(Message::Authenticate)
+                        )
                 )
         )
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
+
+        match message {
+
+            // Establish connection to the display server and initialise other asynchronous items.
+            Message::Connect => {
+                let (client, receiver) = Client::spawn();
+                self.client = Some(client);
+
+                // TODO relay NetworkMessage
+            }
+        }
 
     }
 }
