@@ -165,7 +165,8 @@ pub async fn check_all_albums(access_token: AccessToken, drive_id: String, datab
             .await?
             .into_iter()
     )
-        .filter_map(async |album| check_album(access_token.clone(), drive_id.clone(), album.clone(), database.clone()).await.ok())
+        .filter_map(async |album|
+            check_album(access_token.clone(), drive_id.clone(), album.clone(), database.clone()).await.ok())
         .collect()
         .await)
 }

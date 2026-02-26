@@ -1,4 +1,5 @@
 use crate::communication::NetworkMessage;
+use crate::error::Error;
 
 #[derive(Clone, Debug)]
 pub enum Message {
@@ -16,4 +17,6 @@ pub enum Message {
     // GUI
     Hover(usize),
     Unhover(usize),
+
+    Error(Error)
 }

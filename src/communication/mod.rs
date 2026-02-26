@@ -21,8 +21,8 @@ pub enum NetworkMessage {
     // Server to client
     NewAlbum(Album),
     ReturnAllAlbums(Vec<Album>),
-    ReturnPhotosInAlbum(Vec<Photo>),
-    Thumbnail(Album, Vec<u8>),
+    ReturnPhotosInAlbum(Album, Vec<Photo>),
+    Thumbnail(Photo, Vec<u8>),
     ReturnActiveAlbum(Option<Album>),
 
     // Dummy

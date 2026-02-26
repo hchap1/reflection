@@ -1,23 +1,19 @@
-use std::collections::HashMap;
-
-use iced::advanced::image::Handle;
 use iced::{Background, Length, Task};
-use iced::widget::{Column, Container, MouseArea, Row, Scrollable, Space, Stack, button, image};
+use iced::widget::{Column, Container, MouseArea, Row, Scrollable, Space, Stack, button, image, stack};
+use iced::advanced::image::Handle;
 use iced::widget::text;
 
 use crate::communication::client::Client;
 use crate::communication::NetworkMessage;
-use crate::frontend::application::ApplicationError;
 use crate::frontend::colour::Colour;
 use crate::frontend::control_application::message::Message;
-use crate::onedrive::get_album_children::{Album, Photo};
+use crate::onedrive::get_album_children::Album;
 use crate::util::relay;
 
 #[derive(Default)]
 pub struct Application {
     remote_connection: Option<Client>,
-    albums: Vec<(Album, Vec<Photo>)>,
-    thumbnails: HashMap<String, Handle>,
+    albums: Vec<(Album, Option<Handle>)>,
     active_album: Option<Album>,
 }
 
@@ -96,45 +92,14 @@ impl Application {
 
             Message::IncomingNetworkMessage(nm) => {
                 match nm {
-
-                    // IncomingNetworkMessage
-
                     NetworkMessage::NewAlbum(album) => {
-                        self.albums.push((album, vec![]));
+                        self.albums.push((album, None));
                         Task::none()
                     },
                     
                     NetworkMessage::ReturnAllAlbums(albums) => {
-                        self.albums.append(&mut albums.into_iter().map(|x| (x, vec![])).collect());
+                        self.albums.append(&mut albums.into_iter().map(|x| (x, None)).collect());
                         Task::none()
-                    },
-
-                    NetworkMessage::ReturnPhotosInAlbum(album, mut photos) => {
-                        for album_mutref in &mut self.albums {
-                            if album_mutref.0.name == album.name {
-                                album_mutref.1.append(&mut photos)
-                            }
-                        }.into()
-                    },
-
-                    NetworkMessage::Thumbnail(photo, bytes) => {
-                        self.thumbnails.insert(photo.onedrive_id, Handle::from_bytes(bytes));
-                        Task::none()
-                    }
-
-                    NetworkMessage::ReturnActiveAlbum(album) => {
-                        self.active_album = album;
-                        Task::none()
-                    },
-
-                    // OutgoingNetworkMessage
-                    outgoing => {
-                        if let Some(client) = self.remote_connection.as_mut() {
-                            // TODO map result dumbass
-                            Task::future(client.send(outgoing))
-                        } else {
-                            Task::done(Message::Error(ApplicationError::NotConnected.into()))
-                        }
                     }
                 }
             }

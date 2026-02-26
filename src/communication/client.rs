@@ -69,4 +69,9 @@ impl Client {
 
         Ok(())
     }
+
+    pub async fn send(&self, message: NetworkMessage) -> Res<()> {
+        self.sender.send(message).await.map_err(ChannelError::from)?;
+        Ok(())
+    }
 }

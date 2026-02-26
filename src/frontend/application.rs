@@ -25,7 +25,8 @@ pub enum ApplicationError {
     NotAuthenticated,
     NoSuchAlbum,
     EndianFailure,
-    NoEndpoint
+    NoEndpoint,
+    NotConnected
 }
 
 pub struct Application {
