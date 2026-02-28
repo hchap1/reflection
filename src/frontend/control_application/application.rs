@@ -61,7 +61,7 @@ impl Application {
                                                     .push(text(&album.onedrive_id))
                                             )
                                     ).style(
-                                        |_| iced::widget::container::Style::default()
+                                        move |_| iced::widget::container::Style::default()
                                             .background(match hovered {
                                                 true => Colour::accent(),
                                                 false => Colour::background()
