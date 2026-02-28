@@ -20,7 +20,7 @@ pub async fn authenticate(datalink: DataLink) -> Res<(TokenSet, DriveData)> {
             refresh_tokenset(token).await?
         },
         Err(_) => {
-            return Err(ApplicationError::NotAuthenticated)
+            return Err(ApplicationError::NotAuthenticated.into())
         }
     };
 
