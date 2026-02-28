@@ -2,6 +2,7 @@ use std::{io::{Read, Write}, net::{IpAddr, Ipv4Addr, TcpListener, TcpStream}, th
 use async_channel::{Receiver, Sender, unbounded};
 use if_addrs::get_if_addrs;
 use mdns_sd::{ServiceDaemon, ServiceInfo};
+use std::sync::{Arc, Mutex};
 
 pub const PORT: u16 = 7878;
 pub const SERVICE_TYPE: &str = "_reflection._tcp.local.";
@@ -12,7 +13,8 @@ use crate::{communication::NetworkMessage, error::{ChannelError, Res}, frontend:
 
 pub struct Server {
     thread: JoinHandle<Res<()>>,
-    sender: Sender<NetworkMessage>
+    sender: Sender<NetworkMessage>,
+    active_connection: Arc<Mutex<Option<IpAddr>>>
 }
 
 impl Server {
@@ -24,23 +26,32 @@ impl Server {
         let (recv_from_foreign_sender, recv_from_foreign_receiver) = unbounded();
         let send_to_foreign_sender_clone = send_to_foreign_sender.clone();
 
+        let active_connection = Arc::new(Mutex::new(None));
+        let active_connection_clone = active_connection.clone();
+
         (
             Self {
-                thread: spawn(move || Self::run(recv_from_foreign_sender, send_to_foreign_receiver, send_to_foreign_sender_clone)),
-                sender: send_to_foreign_sender
+                thread: spawn(move || Self::run(recv_from_foreign_sender, send_to_foreign_receiver, send_to_foreign_sender_clone, active_connection_clone)),
+                sender: send_to_foreign_sender,
+                active_connection
             },
             recv_from_foreign_receiver
         )
     }
 
-    fn run(output: Sender<NetworkMessage>, input: Receiver<NetworkMessage>, input_sender: Sender<NetworkMessage>) -> Res<()> {
+    fn run(output: Sender<NetworkMessage>, input: Receiver<NetworkMessage>, input_sender: Sender<NetworkMessage>, active_connection: Arc<Mutex<Option<IpAddr>>>) -> Res<()> {
 
         let listener = TcpListener::bind((IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), PORT))?;
         let (mdns_sender, mdns_receiver) = unbounded();
 
         let mdns_thread = spawn(move || Self::advertise_service(mdns_receiver));
 
-        while let Ok((tcp_stream, _)) = listener.accept() {
+        while let Ok((tcp_stream, addr)) = listener.accept() {
+
+            {
+                let mut active_connection = active_connection.lock().unwrap();
+                active_connection.replace(addr.ip());
+            }
 
             // Clones
             let tcp_stream_clone = tcp_stream.try_clone()?;
@@ -133,5 +144,10 @@ impl Server {
         mdns.shutdown()?;
 
         Ok(())
+    }
+
+    pub fn get_active_connection(&self) -> Option<IpAddr> {
+        let connection = self.active_connection.lock().unwrap();
+        connection.clone()
     }
 }
