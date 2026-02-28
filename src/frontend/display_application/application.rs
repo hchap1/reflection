@@ -1,12 +1,15 @@
 use async_channel::Receiver;
+use iced::Task;
 use iced::widget::{Container, text};
 use iced::widget::Column;
 use rusqlite_async::database::Database;
 
+use crate::authentication::oauth2::wrapper::first_authentication;
 use crate::communication::NetworkMessage;
 use crate::communication::server::Server;
 use crate::error::Error;
 use crate::frontend::colour::Colour;
+use crate::frontend::display_application::message::Message;
 use crate::{authentication::oauth2::api::TokenSet, database::interface, directories::create::Directories, frontend::message::Message, onedrive::get_drive::DriveData};
 
 pub struct Application {
@@ -44,8 +47,25 @@ impl Application {
                     else { None }
                 )
                 .push(
-    
+                    self.connection.get_active_connection().map(|ip| text(format!("Connected to {ip}!")))
                 )
         )
+    }
+
+    pub fn update(&mut self, message: Message) -> Task<Message> {
+        match message {
+            Message::IncomingNetworkMessage(nm) => match nm {
+                NetworkMessage::TokenSet(tokenset) => {
+                    let datalink = self.database.derive();
+                    Task::future(first_authentication(datalink, tokenset))
+                        .map(|res| match res {
+                            Ok((tokenset, drivedata)) => {
+                                Message::AuthenticationComplete(tokenset, drivedata)
+                            },
+                            Err(e) => Message::Error(e)
+                        })
+                }
+            }
+        }
     }
 }

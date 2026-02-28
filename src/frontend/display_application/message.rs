@@ -1,6 +1,7 @@
 use crate::authentication::oauth2::api::TokenSet;
 use crate::communication::NetworkMessage;
 use crate::error::Error;
+use crate::onedrive::get_drive::DriveData;
 
 #[derive(Clone, Debug)]
 pub enum Message {
@@ -15,6 +16,7 @@ pub enum Message {
 
     // Save incoming authentication information
     SaveAuthentication(TokenSet),
+    AuthenticationComplete(TokenSet, DriveData),
 
     Error(Error)
 }

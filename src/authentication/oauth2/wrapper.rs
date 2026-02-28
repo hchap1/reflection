@@ -14,6 +14,12 @@ use crate::onedrive::api::AccessToken;
 use crate::onedrive::get_drive::get_drive;
 use crate::error::Res;
 
+pub async fn first_authentication(datalink: DataLink, tokenset: TokenSet) -> Res<(TokenSet, DriveData)> {
+    let drive = get_drive(AccessToken::new(tokenset.access_token.clone())).await?;
+    insert_token(datalink, tokenset.refresh_token.clone(), tokenset.absolute_expiration).await?;
+    Ok((tokenset, drive))
+}
+
 pub async fn authenticate(datalink: DataLink) -> Res<(TokenSet, DriveData)> {
     let tokenset = match retrieve_token(datalink.clone()).await {
         Ok((token, _)) => {
