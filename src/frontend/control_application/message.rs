@@ -3,6 +3,7 @@ use crate::error::Error;
 
 #[derive(Clone, Debug)]
 pub enum Message {
+    None,
 
     // Attempt to form a connection with the display server
     Connect,

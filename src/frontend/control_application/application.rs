@@ -130,8 +130,11 @@ impl Application {
                     // OutgoingNetworkMessage
                     outgoing => {
                         if let Some(client) = self.remote_connection.as_mut() {
-                            // TODO map result dumbass
                             Task::future(client.send(outgoing))
+                                .map(|res| match res {
+                                    Ok(()) => Message::None,
+                                    Err(e) => Message::Error(e)
+                                })
                         } else {
                             Task::done(Message::Error(ApplicationError::NotConnected.into()))
                         }
