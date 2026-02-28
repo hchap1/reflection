@@ -5,7 +5,7 @@ use iced::{Background, Length, Task};
 use iced::widget::{Column, Container, MouseArea, Row, Scrollable, Space, Stack, button, image};
 use iced::widget::text;
 
-use crate::authentication::oauth2::wrapper::authenticate;
+use crate::authentication::oauth2::wrapper::{authenticate, stateless_authentication};
 use crate::communication::client::Client;
 use crate::communication::NetworkMessage;
 use crate::frontend::application::ApplicationError;
@@ -17,7 +17,7 @@ use crate::util::relay;
 #[derive(Default)]
 pub struct Application {
     remote_connection: Option<Client>,
-    albums: Vec<(Album, Vec<Photo>)>,
+    albums: Vec<(Album, Vec<Photo>, bool)>,
     thumbnails: HashMap<String, Handle>,
     active_album: Option<Album>,
 }
@@ -44,20 +44,28 @@ impl Application {
                         Column::from_iter(self.albums
                             .iter()
                             .enumerate()
-                            .map(|(idx, (album, _))|
+                            .map(|(idx, (album, _, hovered))|
                                 MouseArea::new(
-                                    Row::new()
-                                        .spacing(10)
-                                        .padding(10)
-                                        .push(
-                                            Stack::new()
+                                    Container::new(
+                                        Row::new()
+                                            .spacing(10)
+                                            .padding(10)
+                                            .push(
+                                                Stack::new()
 
-                                        ).push(
-                                            Column::new()
-                                                .spacing(10)
-                                                .push(text(&album.name))
-                                                .push(text(&album.onedrive_id))
-                                        )
+                                            ).push(
+                                                Column::new()
+                                                    .spacing(10)
+                                                    .push(text(&album.name))
+                                                    .push(text(&album.onedrive_id))
+                                            )
+                                    ).style(
+                                        |_| iced::widget::container::Style::default()
+                                            .background(match hovered {
+                                                true => Colour::accent(),
+                                                false => Colour::background()
+                                            })
+                                    )
                                 )
                                 .on_enter(Message::Hover(idx))
                                 .on_exit(Message::Unhover(idx))
@@ -132,25 +140,42 @@ impl Application {
                         self.active_album = album;
                         Task::none()
                     },
-
-                    // OutgoingNetworkMessage
-                    outgoing => {
-                        if let Some(client) = self.remote_connection.as_mut() {
-                            Task::future(client.send(outgoing))
-                                .map(|res| match res {
-                                    Ok(()) => Message::None,
-                                    Err(e) => Message::Error(e)
-                                })
-                        } else {
-                            Task::done(Message::Error(ApplicationError::NotConnected.into()))
-                        }
-                    }
                 }
             },
 
             Message::None => Task::none(),
             Message::Authenticate => {
-                authenticate(datalink)
+                Task::future(stateless_authentication()).map(|res| match res {
+                    Ok((tokenset, drivedata)) => Message::OutgoingNetworkMessage(NetworkMessage::DispatchAuthentication(tokenset, drivedata)),
+                    Err(e) => Message::Error(e)
+                })
+            },
+
+            Message::Hover(idx) => {
+                if let Some(item) = self.albums.get_mut(idx) {
+                    item.2 = true;
+                }
+                Task::none()
+            }
+
+            Message::Unhover(idx) => {
+                if let Some(item) = self.albums.get_mut(idx) {
+                    item.2 = false;
+                }
+                Task::none()
+            }
+
+            Message::OutgoingNetworkMessage(nm) => {
+                // OutgoingNetworkMessage
+                if let Some(client) = self.remote_connection.as_mut() {
+                    Task::future(client.send(nm))
+                        .map(|res| match res {
+                            Ok(()) => Message::None,
+                            Err(e) => Message::Error(e)
+                        })
+                } else {
+                    Task::done(Message::Error(ApplicationError::NotConnected.into()))
+                }
             }
         }
 
