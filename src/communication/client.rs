@@ -1,7 +1,7 @@
 use std::{net::{IpAddr, Ipv4Addr, TcpStream}, thread::spawn};
 use std::thread::JoinHandle;
 
-use crate::{communication::{NetworkMessage, server::{PORT, SERVICE_TYPE, Server}}, error::{ChannelError, Res}, frontend::application::ApplicationError};
+use crate::{communication::{NetworkMessage, server::{PORT, SERVICE_TYPE, Server}}, error::{ChannelError, Res}, frontend::application::ApplicationError, util::channel::send};
 use async_channel::Sender;
 use async_channel::Receiver;
 use async_channel::unbounded;
@@ -70,8 +70,12 @@ impl Client {
         Ok(())
     }
 
-    pub async fn send(&self, message: NetworkMessage) -> Res<()> {
-        self.sender.send(message).await.map_err(ChannelError::from)?;
+    pub fn yield_sender(&self) -> Sender<NetworkMessage> {
+        self.sender.clone()
+    }
+
+    pub async fn send_with(sender: Sender<NetworkMessage>, network_message: NetworkMessage) -> Res<()> {
+        send(network_message, &sender).await?;
         Ok(())
     }
 }

@@ -1,6 +1,6 @@
 use rkyv::{Archive, Deserialize, Serialize};
 
-use crate::{authentication::oauth2::api::TokenSet, error::Res, onedrive::{get_album_children::{Album, Photo}, get_drive::DriveData}};
+use crate::{authentication::oauth2::api::TokenSet, error::Res, onedrive::get_album_children::{Album, Photo}};
 
 pub mod server;
 pub mod client;
@@ -17,7 +17,6 @@ pub enum NetworkMessage {
     RequestPhotosInAlbum(Album),
     RequestThumbnails,
     RequestActiveAlbum,
-    DispatchAuthentication(TokenSet, DriveData),
 
     // Server to client
     NewAlbum(Album),

@@ -8,6 +8,7 @@ use iced::widget::text;
 use crate::authentication::oauth2::wrapper::{authenticate, stateless_authentication};
 use crate::communication::client::Client;
 use crate::communication::NetworkMessage;
+use crate::error::ChannelError;
 use crate::frontend::application::ApplicationError;
 use crate::frontend::colour::Colour;
 use crate::frontend::control_application::message::Message;
@@ -114,12 +115,12 @@ impl Application {
                     // IncomingNetworkMessage
 
                     NetworkMessage::NewAlbum(album) => {
-                        self.albums.push((album, vec![]));
+                        self.albums.push((album, vec![], false));
                         Task::none()
                     },
                     
                     NetworkMessage::ReturnAllAlbums(albums) => {
-                        self.albums.append(&mut albums.into_iter().map(|x| (x, vec![])).collect());
+                        self.albums.append(&mut albums.into_iter().map(|x| (x, vec![], false)).collect());
                         Task::none()
                     },
 
@@ -140,13 +141,15 @@ impl Application {
                         self.active_album = album;
                         Task::none()
                     },
+
+                    _ => Task::none()
                 }
             },
 
             Message::None => Task::none(),
             Message::Authenticate => {
                 Task::future(stateless_authentication()).map(|res| match res {
-                    Ok((tokenset, drivedata)) => Message::OutgoingNetworkMessage(NetworkMessage::DispatchAuthentication(tokenset, drivedata)),
+                    Ok((tokenset, _)) => Message::OutgoingNetworkMessage(NetworkMessage::TokenSet(tokenset)),
                     Err(e) => Message::Error(e)
                 })
             },
@@ -167,8 +170,9 @@ impl Application {
 
             Message::OutgoingNetworkMessage(nm) => {
                 // OutgoingNetworkMessage
-                if let Some(client) = self.remote_connection.as_mut() {
-                    Task::future(client.send(nm))
+                if let Some(client) = self.remote_connection.as_ref() {
+                    let sender = client.yield_sender();
+                    Task::future(Client::send_with(sender, nm))
                         .map(|res| match res {
                             Ok(()) => Message::None,
                             Err(e) => Message::Error(e)
@@ -176,6 +180,11 @@ impl Application {
                 } else {
                     Task::done(Message::Error(ApplicationError::NotConnected.into()))
                 }
+            }
+
+            Message::Error(e) => {
+                eprintln!("Error: {e:?}");
+                Task::none()
             }
         }
 
