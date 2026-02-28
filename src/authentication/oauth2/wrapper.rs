@@ -8,6 +8,7 @@ use crate::authentication::callback::server::run_server;
 use crate::authentication::callback::client::launch_oauth2;
 use crate::database::interface::insert_token;
 use crate::database::interface::retrieve_token;
+use crate::frontend::application::ApplicationError;
 use crate::onedrive::get_drive::DriveData;
 use crate::onedrive::api::AccessToken;
 use crate::onedrive::get_drive::get_drive;
@@ -19,17 +20,22 @@ pub async fn authenticate(datalink: DataLink) -> Res<(TokenSet, DriveData)> {
             refresh_tokenset(token).await?
         },
         Err(_) => {
-            let csrf = generate_csrf();
-            let (pkce_verifier, pkce_challenge) = generate_pkce();
-
-            launch_oauth2(csrf.clone(), pkce_challenge).await?;
-            let temporary_code = run_server(csrf).await?;
-            post_oauth2_code(temporary_code, pkce_verifier).await?
+            return Err(ApplicationError::NotAuthenticated)
         }
     };
 
     insert_token(datalink, tokenset.refresh_token.clone(), tokenset.absolute_expiration).await?;
     let drive = get_drive(AccessToken::new(tokenset.access_token.clone())).await?;
 
+    Ok((tokenset, drive))
+}
+
+pub async fn stateless_authentication() -> Res<(TokenSet, DriveData)> {
+    let csrf = generate_csrf();
+    let (pkce_verifier, pkce_challenge) = generate_pkce();
+    launch_oauth2(csrf.clone(), pkce_challenge).await?;
+    let temporary_code = run_server(csrf).await?;
+    let tokenset = post_oauth2_code(temporary_code, pkce_verifier).await?;
+    let drive = get_drive(AccessToken::new(tokenset.access_token.clone())).await?;
     Ok((tokenset, drive))
 }

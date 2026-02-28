@@ -5,6 +5,7 @@ use iced::{Background, Length, Task};
 use iced::widget::{Column, Container, MouseArea, Row, Scrollable, Space, Stack, button, image};
 use iced::widget::text;
 
+use crate::authentication::oauth2::wrapper::authenticate;
 use crate::communication::client::Client;
 use crate::communication::NetworkMessage;
 use crate::frontend::application::ApplicationError;
@@ -43,18 +44,14 @@ impl Application {
                         Column::from_iter(self.albums
                             .iter()
                             .enumerate()
-                            .map(|(idx, (album, handle))|
+                            .map(|(idx, (album, _))|
                                 MouseArea::new(
                                     Row::new()
                                         .spacing(10)
                                         .padding(10)
                                         .push(
                                             Stack::new()
-                                                .push(match handle {
-                                                    Some(handle) => Container::new(image(handle).width(128).height(128)),
-                                                    None => Container::new(Space::new().width(Length::Fixed(128f32)).height(Length::Fixed(128f32)))
-                                                        .style(|_| iced::widget::container::Style::default().background(Background::Color(Colour::gray())))
-                                                })
+
                                         ).push(
                                             Column::new()
                                                 .spacing(10)
@@ -79,6 +76,15 @@ impl Application {
                         )
                 )
         )
+
+        /*
+        Code for loading images for later
+
+                                                .push(match handle {
+                                                    Some(handle) => Container::new(image(handle).width(128).height(128)),
+                                                    None => Container::new(Space::new().width(Length::Fixed(128f32)).height(Length::Fixed(128f32))) .style(|_| iced::widget::container::Style::default().background(Background::Color(Colour::gray())))
+                                                })
+*/
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -140,6 +146,11 @@ impl Application {
                         }
                     }
                 }
+            },
+
+            Message::None => Task::none(),
+            Message::Authenticate => {
+                authenticate(datalink)
             }
         }
 
