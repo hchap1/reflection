@@ -3,9 +3,8 @@ use async_channel::{Receiver, Sender, unbounded};
 use if_addrs::get_if_addrs;
 use mdns_sd::{ServiceDaemon, ServiceInfo};
 use std::sync::{Arc, Mutex};
-
 pub const PORT: u16 = 7878;
-pub const SERVICE_TYPE: &str = "_reflection._tcp.local.";
+pub const SERVICE_TYPE: &str = "_reflection._udp.local.";
 pub const INSTANCE_NAME: &str = "reflection";
 pub const PROPERTIES: [(&str, &str); 1] = [("version", "1.0")];
 
@@ -140,7 +139,7 @@ impl Server {
         let ip = Self::get_lan_ip()?;
 
         // let ip_string = ip.to_string();
-        let hostname = format!("{INSTANCE_NAME}.local.");
+        let hostname = format!("{}.local.", hostname::get()?.to_string_lossy());
 
         let mdns = ServiceDaemon::new()?;
 
