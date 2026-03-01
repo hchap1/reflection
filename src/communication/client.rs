@@ -20,7 +20,12 @@ impl Client {
         let (recv_from_foreign_sender, recv_from_foreign_receiver) = unbounded();
         let send_to_foreign_sender_clone = send_to_foreign_sender.clone();
 
+        println!("Senders and receivers created...");
+
         let target_address = tokio::task::spawn_blocking(Self::discover).await??;
+
+        println!("Target address aquired {target_address:?}...");
+
         let recv_stream = tokio::task::spawn_blocking(move || TcpStream::connect((target_address, PORT))).await??;
 
         Ok((
@@ -36,7 +41,12 @@ impl Client {
         let mdns = ServiceDaemon::new()?;
         let receiver = mdns.browse(SERVICE_TYPE)?;
 
+        println!("Created service daemon...");
+
         while let Ok(event) = receiver.recv() {
+
+            println!("Event {event:?}...");
+            
             match event {
                 mdns_sd::ServiceEvent::ServiceResolved(service) => return service
                     .addresses

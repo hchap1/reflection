@@ -144,6 +144,8 @@ impl Server {
 
         let mdns = ServiceDaemon::new()?;
 
+        println!("Advertising on MDNS: {ip}");
+
         let service_info = ServiceInfo::new(
             SERVICE_TYPE,
             INSTANCE_NAME,
