@@ -4,7 +4,7 @@ use if_addrs::get_if_addrs;
 use mdns_sd::{ServiceDaemon, ServiceInfo};
 use std::sync::{Arc, Mutex};
 pub const PORT: u16 = 7878;
-pub const SERVICE_TYPE: &str = "_reflection._udp.local.";
+pub const SERVICE_TYPE: &str = "_reflection._tcp.local.";
 pub const INSTANCE_NAME: &str = "reflection";
 pub const PROPERTIES: [(&str, &str); 1] = [("version", "1.0")];
 
