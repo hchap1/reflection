@@ -21,7 +21,6 @@ type ReqwestError = reqwest::Error;
 type SerdeJsonError = serde_json::Error;
 type DatabaseError = rusqlite_async::error::Error;
 type RancorError = rkyv::rancor::Error;
-type MdnsError = mdns_sd::Error;
 
 macro_rules! error_enum {
     (
@@ -94,6 +93,5 @@ error_enum! {
         DownloadError,
         ApplicationError,
         RancorError,
-        MdnsError
     }
 }

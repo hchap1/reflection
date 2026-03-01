@@ -1,11 +1,12 @@
-use std::{net::{IpAddr, Ipv4Addr, TcpStream}, thread::spawn};
-use std::thread::JoinHandle;
+use std::{net::{Ipv4Addr}};
+use tokio::spawn;
+use tokio::task::JoinHandle;
+use tokio::net::TcpStream;
 
-use crate::{communication::{NetworkMessage, server::{PORT, SERVICE_TYPE, Server}}, error::{ChannelError, Res}, frontend::application::ApplicationError, util::channel::send};
+use crate::{communication::{NetworkMessage, server::{PORT, IDENTIFIER, Server}}, error::{ChannelError, Res}, frontend::application::ApplicationError, util::channel::send};
 use async_channel::Sender;
 use async_channel::Receiver;
 use async_channel::unbounded;
-use mdns_sd::ServiceDaemon;
 
 #[derive(Debug)]
 pub struct Client {
@@ -19,64 +20,34 @@ impl Client {
         let (send_to_foreign_sender, send_to_foreign_receiver) = unbounded();
         let (recv_from_foreign_sender, recv_from_foreign_receiver) = unbounded();
         let send_to_foreign_sender_clone = send_to_foreign_sender.clone();
-
-        println!("Senders and receivers created...");
-
-        let target_address = tokio::task::spawn_blocking(Self::discover).await??;
-
-        println!("Target address aquired {target_address:?}...");
-
-        let recv_stream = tokio::task::spawn_blocking(move || TcpStream::connect((target_address, PORT))).await??;
+        let target_address = Self::discover().await?;
+        let recv_stream = TcpStream::connect((target_address, PORT)).await?;
 
         Ok((
             Self {
-                thread: spawn(move || Self::run(recv_stream, recv_from_foreign_sender, send_to_foreign_receiver, send_to_foreign_sender_clone)),
+                thread: spawn(Self::run(recv_stream, recv_from_foreign_sender, send_to_foreign_receiver, send_to_foreign_sender_clone)),
                 sender: send_to_foreign_sender
             },
             recv_from_foreign_receiver
         ))
     }
 
-    fn discover() -> Res<Ipv4Addr> {
-        let mdns = ServiceDaemon::new()?;
-        let receiver = mdns.browse(SERVICE_TYPE)?;
-
-        println!("Created service daemon...");
-
-        while let Ok(event) = receiver.recv() {
-
-            println!("Event {event:?}...");
-            
-            match event {
-                mdns_sd::ServiceEvent::ServiceResolved(service) => return service
-                    .addresses
-                    .into_iter()
-                    .filter_map(
-                        |scoped_ip|
-                        if let IpAddr::V4(ipv4) = scoped_ip.to_ip_addr() {
-                            Some(ipv4)
-                        } else { None }
-                    )
-                    .next()
-                    .ok_or(ApplicationError::NoEndpoint.into()),
-                _ => continue
-            }
-        };
-
+    async fn discover() -> Res<Ipv4Addr> {
+        udp_discovery::client::discover(IDENTIFIER, PORT).await;
         Err(ApplicationError::NoEndpoint.into())
     }
 
-    fn run(recv_stream: TcpStream, output: Sender<NetworkMessage>, input: Receiver<NetworkMessage>, input_sender: Sender<NetworkMessage>) -> Res<()> {
-        let send_stream = recv_stream.try_clone()?;
+    async fn run(mut recv_stream: TcpStream, output: Sender<NetworkMessage>, input: Receiver<NetworkMessage>, input_sender: Sender<NetworkMessage>) -> Res<()> {
+        let (read_half, write_half) = recv_stream.into_split();
 
-        let recv_thread = spawn(move || Server::recv(recv_stream, output));
-        let send_thread = spawn(move || Server::send(send_stream, input));
+        let recv_thread = spawn(Server::recv(read_half, output));
+        let send_thread = spawn(Server::send(write_half, input));
 
-        let _ = recv_thread.join();
+        let _ = recv_thread.await;
 
         // Interupt send thread
-        input_sender.send_blocking(NetworkMessage::TerminateThread).map_err(ChannelError::from)?;
-        let _ = send_thread.join();
+        input_sender.send(NetworkMessage::TerminateThread).await.map_err(ChannelError::from)?;
+        let _ = send_thread.await;
 
         Ok(())
     }

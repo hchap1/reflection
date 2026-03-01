@@ -1,12 +1,11 @@
-use std::{io::{Read, Write}, net::{IpAddr, Ipv4Addr, TcpListener, TcpStream}, thread::{JoinHandle, spawn}};
+use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::tcp::{OwnedReadHalf, OwnedWriteHalf}, task::{JoinHandle, spawn}};
+use tokio::net::TcpListener;
+use std::net::{IpAddr, Ipv4Addr};
 use async_channel::{Receiver, Sender, unbounded};
-use if_addrs::get_if_addrs;
-use mdns_sd::{ServiceDaemon, ServiceInfo};
 use std::sync::{Arc, Mutex};
+
+pub const IDENTIFIER: &str = "reflection";
 pub const PORT: u16 = 7878;
-pub const SERVICE_TYPE: &str = "_reflection._tcp.local.";
-pub const INSTANCE_NAME: &str = "reflection";
-pub const PROPERTIES: [(&str, &str); 1] = [("version", "1.0")];
 
 use crate::{communication::NetworkMessage, error::{ChannelError, Res}, frontend::application::ApplicationError, util::channel::send};
 
@@ -30,7 +29,7 @@ impl Server {
 
         (
             Self {
-                thread: spawn(move || Self::run(recv_from_foreign_sender, send_to_foreign_receiver, send_to_foreign_sender_clone, active_connection_clone)),
+                thread: spawn(Self::run(recv_from_foreign_sender, send_to_foreign_receiver, send_to_foreign_sender_clone, active_connection_clone)),
                 sender: send_to_foreign_sender,
                 active_connection
             },
@@ -38,22 +37,12 @@ impl Server {
         )
     }
 
-    fn run(output: Sender<NetworkMessage>, input: Receiver<NetworkMessage>, input_sender: Sender<NetworkMessage>, active_connection: Arc<Mutex<Option<IpAddr>>>) -> Res<()> {
+    async fn run(output: Sender<NetworkMessage>, input: Receiver<NetworkMessage>, input_sender: Sender<NetworkMessage>, active_connection: Arc<Mutex<Option<IpAddr>>>) -> Res<()> {
 
-        println!("Running server...");
+        let listener = TcpListener::bind((IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), PORT)).await?;
+        let udp = spawn(udp_discovery::server::Server::spawn(IDENTIFIER, PORT));
 
-        let listener = TcpListener::bind((IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), PORT))?;
-        let (mdns_sender, mdns_receiver) = unbounded();
-
-        println!("Bound listener & started MDNS discovery...");
-
-        let mdns_thread = spawn(move || Self::advertise_service(mdns_receiver));
-
-        println!("MDNS thread spawned...");
-
-        while let Ok((tcp_stream, addr)) = listener.accept() {
-
-            println!("Accepted connection {addr:?}");
+        while let Ok((mut tcp_stream, addr)) = listener.accept().await {
 
             {
                 let mut active_connection = active_connection.lock().unwrap();
@@ -61,18 +50,18 @@ impl Server {
             }
 
             // Clones
-            let tcp_stream_clone = tcp_stream.try_clone()?;
+            let (read_half, write_half) = tcp_stream.into_split();
             let output_clone = output.clone();
             let input_clone = input.clone();
 
-            let recv_thread = spawn(move || Self::recv(tcp_stream_clone, output_clone));
-            let send_thread = spawn(move || Self::send(tcp_stream, input_clone));
+            let recv_thread = spawn(Self::recv(read_half, output_clone));
+            let send_thread = spawn(Self::send(write_half, input_clone));
 
-            let _ = recv_thread.join();
+            let _ = recv_thread.await;
 
             // Interupt send thread
             input_sender.send_blocking(NetworkMessage::TerminateThread).map_err(ChannelError::from)?;
-            let _ = send_thread.join();
+            let _ = send_thread.await;
 
             // Clear channel
             while input.try_recv().is_ok() {}
@@ -84,31 +73,31 @@ impl Server {
             }
         }
 
-        mdns_sender.send_blocking(()).map_err(ChannelError::from)?;
-        let _ = mdns_thread.join();
+        udp.abort();
+        let _ = udp.await;
 
         Ok(())
     }
 
-    pub fn recv(mut client: TcpStream, output: Sender<NetworkMessage>) -> Res<()> {
+    pub async fn recv(mut client: OwnedReadHalf, output: Sender<NetworkMessage>) -> Res<()> {
         let mut size_buf = vec![0u8; 4];
 
         loop {
-            client.read_exact(&mut size_buf)?;
+            client.read_exact(&mut size_buf).await?;
             let packet_size = u32::from_be_bytes(size_buf.clone().try_into().map_err(|_| ApplicationError::EndianFailure)?);
             let mut buf = vec![0u8; packet_size as usize];
-            client.read_exact(&mut buf)?;
+            client.read_exact(&mut buf).await?;
 
             let network_message = NetworkMessage::from_bytes(&buf)?;
-            output.send_blocking(network_message).map_err(ChannelError::from)?;
+            output.send(network_message).await.map_err(ChannelError::from)?;
         }
     }
 
-    pub fn send(mut client: TcpStream, input: Receiver<NetworkMessage>) -> Res<()> {
+    pub async fn send(mut client: OwnedWriteHalf, input: Receiver<NetworkMessage>) -> Res<()> {
         while let Ok(message) = input.recv_blocking() {
 
             if let NetworkMessage::TerminateThread = message {
-                client.shutdown(std::net::Shutdown::Both)?;
+                client.shutdown().await?;
                 break;
             }
 
@@ -116,47 +105,10 @@ impl Server {
             let size: u32 = bytes.len() as u32;
             let endians = size.to_be_bytes().to_vec();
 
-            client.write_all(&endians)?;
-            client.write_all(&bytes)?;
+            client.write_all(&endians).await?;
+            client.write_all(&bytes).await?;
         }
 
-
-        Ok(())
-    }
-
-    fn get_lan_ip() -> Res<IpAddr> {
-        for iface in get_if_addrs()? {
-            if !iface.is_loopback() && iface.ip().is_ipv4() {
-                return Ok(iface.ip())
-            }
-        }
-
-        Err(ApplicationError::NoEndpoint)?
-    }
-
-    fn advertise_service(shutdown_receiver: Receiver<()>) -> Res<()> {
-
-        let ip = Self::get_lan_ip()?;
-
-        // let ip_string = ip.to_string();
-        let hostname = format!("{}.local.", hostname::get()?.to_string_lossy());
-
-        let mdns = ServiceDaemon::new()?;
-
-        println!("Advertising on MDNS: {ip}");
-
-        let service_info = ServiceInfo::new(
-            SERVICE_TYPE,
-            INSTANCE_NAME,
-            &hostname,
-            ip,
-            PORT,
-            &PROPERTIES[..]
-        )?;
-
-        mdns.register(service_info)?;
-        let _ = shutdown_receiver.recv_blocking();
-        mdns.shutdown()?;
 
         Ok(())
     }
