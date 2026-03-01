@@ -1,9 +1,9 @@
-use std::{net::{Ipv4Addr}};
+use std::net::IpAddr;
 use tokio::spawn;
 use tokio::task::JoinHandle;
 use tokio::net::TcpStream;
 
-use crate::{communication::{NetworkMessage, server::{PORT, IDENTIFIER, Server}}, error::{ChannelError, Res}, frontend::application::ApplicationError, util::channel::send};
+use crate::{communication::{NetworkMessage, server::{PORT, IDENTIFIER, Server}}, error::{ChannelError, Res}, util::channel::send};
 use async_channel::Sender;
 use async_channel::Receiver;
 use async_channel::unbounded;
@@ -32,12 +32,12 @@ impl Client {
         ))
     }
 
-    async fn discover() -> Res<Ipv4Addr> {
-        udp_discovery::client::discover(IDENTIFIER, PORT).await;
-        Err(ApplicationError::NoEndpoint.into())
+    async fn discover() -> Res<IpAddr> {
+        let addr = udp_discovery::client::discover(IDENTIFIER, PORT).await?;
+        Ok(addr)
     }
 
-    async fn run(mut recv_stream: TcpStream, output: Sender<NetworkMessage>, input: Receiver<NetworkMessage>, input_sender: Sender<NetworkMessage>) -> Res<()> {
+    async fn run(recv_stream: TcpStream, output: Sender<NetworkMessage>, input: Receiver<NetworkMessage>, input_sender: Sender<NetworkMessage>) -> Res<()> {
         let (read_half, write_half) = recv_stream.into_split();
 
         let recv_thread = spawn(Server::recv(read_half, output));

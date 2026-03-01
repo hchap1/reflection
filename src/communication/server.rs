@@ -114,7 +114,7 @@ impl Server {
 
     pub fn get_active_connection(&self) -> Option<IpAddr> {
         let connection = self.active_connection.lock().unwrap();
-        connection.clone()
+        *connection
     }
 
     pub fn get_sender(&self) -> Sender<NetworkMessage> {
