@@ -41,12 +41,20 @@ impl Server {
 
     fn run(output: Sender<NetworkMessage>, input: Receiver<NetworkMessage>, input_sender: Sender<NetworkMessage>, active_connection: Arc<Mutex<Option<IpAddr>>>) -> Res<()> {
 
+        println!("Running server...");
+
         let listener = TcpListener::bind((IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), PORT))?;
         let (mdns_sender, mdns_receiver) = unbounded();
 
+        println!("Bound listener & started MDNS discovery...");
+
         let mdns_thread = spawn(move || Self::advertise_service(mdns_receiver));
 
+        println!("MDNS thread spawned...");
+
         while let Ok((tcp_stream, addr)) = listener.accept() {
+
+            println!("Accepted connection {addr:?}");
 
             {
                 let mut active_connection = active_connection.lock().unwrap();
