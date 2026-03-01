@@ -7,6 +7,7 @@ use async_channel::Receiver;
 use async_channel::unbounded;
 use mdns_sd::ServiceDaemon;
 
+#[derive(Debug)]
 pub struct Client {
     thread: JoinHandle<Res<()>>,
     sender: Sender<NetworkMessage>
@@ -14,18 +15,21 @@ pub struct Client {
 
 impl Client {
 
-    pub fn spawn() -> (Self, Receiver<NetworkMessage>) {
+    pub async fn spawn() -> Res<(Self, Receiver<NetworkMessage>)> {
         let (send_to_foreign_sender, send_to_foreign_receiver) = unbounded();
         let (recv_from_foreign_sender, recv_from_foreign_receiver) = unbounded();
         let send_to_foreign_sender_clone = send_to_foreign_sender.clone();
 
-        (
+        let target_address = tokio::task::spawn_blocking(Self::discover).await??;
+        let recv_stream = tokio::task::spawn_blocking(move || TcpStream::connect((target_address, PORT))).await??;
+
+        Ok((
             Self {
-                thread: spawn(move || Self::run(recv_from_foreign_sender, send_to_foreign_receiver, send_to_foreign_sender_clone)),
+                thread: spawn(move || Self::run(recv_stream, recv_from_foreign_sender, send_to_foreign_receiver, send_to_foreign_sender_clone)),
                 sender: send_to_foreign_sender
             },
             recv_from_foreign_receiver
-        )
+        ))
     }
 
     fn discover() -> Res<Ipv4Addr> {
@@ -52,10 +56,7 @@ impl Client {
         Err(ApplicationError::NoEndpoint.into())
     }
 
-    fn run(output: Sender<NetworkMessage>, input: Receiver<NetworkMessage>, input_sender: Sender<NetworkMessage>) -> Res<()> {
-
-        let target_address = Self::discover()?;
-        let recv_stream = TcpStream::connect((target_address, PORT))?;
+    fn run(recv_stream: TcpStream, output: Sender<NetworkMessage>, input: Receiver<NetworkMessage>, input_sender: Sender<NetworkMessage>) -> Res<()> {
         let send_stream = recv_stream.try_clone()?;
 
         let recv_thread = spawn(move || Server::recv(recv_stream, output));

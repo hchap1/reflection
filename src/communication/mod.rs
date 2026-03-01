@@ -26,7 +26,10 @@ pub enum NetworkMessage {
     ReturnActiveAlbum(Option<Album>),
 
     // Dummy
-    TerminateThread
+    TerminateThread,
+
+    // Information to application
+    ConnectionMade
 }
 
 impl NetworkMessage {

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use iced::advanced::image::Handle;
 use iced::{Background, Length, Task};
@@ -8,7 +9,6 @@ use iced::widget::text;
 use crate::authentication::oauth2::wrapper::{authenticate, stateless_authentication};
 use crate::communication::client::Client;
 use crate::communication::NetworkMessage;
-use crate::error::ChannelError;
 use crate::frontend::application::ApplicationError;
 use crate::frontend::colour::Colour;
 use crate::frontend::control_application::message::Message;
@@ -17,7 +17,7 @@ use crate::util::relay;
 
 #[derive(Default)]
 pub struct Application {
-    remote_connection: Option<Client>,
+    remote_connection: Option<Arc<Client>>,
     albums: Vec<(Album, Vec<Photo>, bool)>,
     thumbnails: HashMap<String, Handle>,
     active_album: Option<Album>,
@@ -100,9 +100,16 @@ impl Application {
 
         match message {
 
-            // Establish connection to the display server and initialise other asynchronous items.
             Message::Connect => {
-                let (client, receiver) = Client::spawn();
+                Task::future(Client::spawn())
+                    .map(|res| match res {
+                        Ok((client, receiver)) => Message::Connected(Arc::new(client), receiver),
+                        Err(e) => Message::Error(e)
+                    })
+            }
+
+            // Establish connection to the display server and initialise other asynchronous items.
+            Message::Connected(client, receiver) => {
                 self.remote_connection = Some(client);
                 Task::stream(relay::Relay::consume_receiver(receiver, |nm|
                     Some(Message::IncomingNetworkMessage(nm))
