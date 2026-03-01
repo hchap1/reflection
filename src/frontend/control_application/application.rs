@@ -21,6 +21,7 @@ pub struct Application {
     albums: Vec<(Album, Vec<Photo>, bool)>,
     thumbnails: HashMap<String, Handle>,
     active_album: Option<Album>,
+    connection_handle: Option<iced::task::Handle>
 }
 
 impl Application {
@@ -101,11 +102,20 @@ impl Application {
         match message {
 
             Message::Connect => {
-                Task::future(Client::spawn())
+
+                if let Some(handle) = self.connection_handle.take() {
+                    handle.abort();
+                }
+
+                let (task, handle) = Task::abortable(Task::future(Client::spawn())
                     .map(|res| match res {
                         Ok((client, receiver)) => Message::Connected(Arc::new(client), receiver),
                         Err(e) => Message::Error(e)
-                    })
+                    }));
+
+                self.connection_handle = Some(handle);
+
+                task
             }
 
             // Establish connection to the display server and initialise other asynchronous items.
