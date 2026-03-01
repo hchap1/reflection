@@ -40,9 +40,9 @@ impl Server {
     async fn run(output: Sender<NetworkMessage>, input: Receiver<NetworkMessage>, input_sender: Sender<NetworkMessage>, active_connection: Arc<Mutex<Option<IpAddr>>>) -> Res<()> {
 
         let listener = TcpListener::bind((IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), PORT)).await?;
-        let udp = spawn(udp_discovery::server::Server::spawn(IDENTIFIER, PORT));
+        let udp = udp_discovery::server::Server::spawn(IDENTIFIER, PORT).await;
 
-        while let Ok((mut tcp_stream, addr)) = listener.accept().await {
+        while let Ok((tcp_stream, addr)) = listener.accept().await {
 
             {
                 let mut active_connection = active_connection.lock().unwrap();
@@ -73,9 +73,8 @@ impl Server {
             }
         }
 
-        udp.abort();
-        let _ = udp.await;
-
+        udp.stop();
+        let _ = udp.wait().await;
         Ok(())
     }
 
