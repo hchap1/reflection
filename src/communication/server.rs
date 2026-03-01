@@ -139,8 +139,8 @@ impl Server {
 
         let ip = Self::get_lan_ip()?;
 
-        let ip_string = ip.to_string();
-        let hostname = format!("{ip_string}.local");
+        // let ip_string = ip.to_string();
+        let hostname = format!("{INSTANCE_NAME}.local.");
 
         let mdns = ServiceDaemon::new()?;
 
