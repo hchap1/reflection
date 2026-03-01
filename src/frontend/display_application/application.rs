@@ -7,10 +7,8 @@ use rusqlite_async::database::Database;
 use crate::authentication::oauth2::wrapper::first_authentication;
 use crate::communication::NetworkMessage;
 use crate::communication::server::Server;
-use crate::error::Error;
-use crate::frontend::colour::Colour;
 use crate::frontend::display_application::message::Message;
-use crate::{authentication::oauth2::api::TokenSet, database::interface, directories::create::Directories, frontend::message::Message, onedrive::get_drive::DriveData};
+use crate::{authentication::oauth2::api::TokenSet, database::interface, directories::create::Directories, onedrive::get_drive::DriveData};
 
 pub struct Application {
     connection: Server,
@@ -65,11 +63,13 @@ impl Application {
                             },
                             Err(e) => Message::Error(e)
                         })
-                }
+                },
+
+                _ => Task::none()
             }
 
             Message::OutgoingNetworkMessage(nm) => {
-                if let Some(connection) = self.connection.get_active_connection() {
+                if let Some(_) = self.connection.get_active_connection() {
                     let sender = self.connection.get_sender();
                     Task::future(Server::send_network_message(sender, nm))
                         .map(|res| match res {
