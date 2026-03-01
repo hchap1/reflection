@@ -54,6 +54,7 @@ impl Application {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::None => Task::none(),
             Message::IncomingNetworkMessage(nm) => match nm {
                 NetworkMessage::TokenSet(tokenset) => {
                     let datalink = self.database.derive();
@@ -78,6 +79,17 @@ impl Application {
                 } else {
                     Task::none()
                 }
+            }
+
+            Message::AuthenticationComplete(tokenset, drivedata) => {
+                self.tokenset = Some(tokenset);
+                self.drivedata = Some(drivedata);
+                Task::none()
+            }
+
+            Message::Error(e) => {
+                println!("Error: {e:?}");
+                Task::none()
             }
         }
     }

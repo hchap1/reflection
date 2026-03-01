@@ -7,15 +7,11 @@ use crate::onedrive::get_drive::DriveData;
 pub enum Message {
     None,
 
-    // Attempt to form a connection with the control application
-    Connect,
-    
     // Process messages to and from the control application
     IncomingNetworkMessage(NetworkMessage),
     OutgoingNetworkMessage(NetworkMessage),
 
     // Save incoming authentication information
-    SaveAuthentication(TokenSet),
     AuthenticationComplete(TokenSet, DriveData),
 
     Error(Error)
