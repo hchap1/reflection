@@ -9,7 +9,7 @@ pub const SERVICE_TYPE: &str = "_reflection._tcp.local.";
 pub const INSTANCE_NAME: &str = "reflection";
 pub const PROPERTIES: [(&str, &str); 1] = [("version", "1.0")];
 
-use crate::{communication::NetworkMessage, error::{ChannelError, Res}, frontend::application::ApplicationError};
+use crate::{communication::NetworkMessage, error::{ChannelError, Res}, frontend::application::ApplicationError, util::channel::send};
 
 pub struct Server {
     thread: JoinHandle<Res<()>>,
@@ -69,6 +69,12 @@ impl Server {
 
             // Clear channel
             while input.try_recv().is_ok() {}
+
+            // Reset active connection
+            {
+                let mut active_connection = active_connection.lock().unwrap();
+                _ = active_connection.take();
+            }
         }
 
         mdns_sender.send_blocking(()).map_err(ChannelError::from)?;
@@ -149,5 +155,14 @@ impl Server {
     pub fn get_active_connection(&self) -> Option<IpAddr> {
         let connection = self.active_connection.lock().unwrap();
         connection.clone()
+    }
+
+    pub fn get_sender(&self) -> Sender<NetworkMessage> {
+        self.sender.clone()
+    }
+
+    pub async fn send_network_message(sender: Sender<NetworkMessage>, message: NetworkMessage) -> Res<()> {
+        send(message, &sender).await?;
+        Ok(())
     }
 }

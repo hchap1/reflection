@@ -66,6 +66,19 @@ impl Application {
                         })
                 }
             }
+
+            Message::OutgoingNetworkMessage(nm) => {
+                if let Some(connection) = self.connection.get_active_connection() {
+                    let sender = self.connection.get_sender();
+                    Task::future(Server::send_network_message(sender, nm))
+                        .map(|res| match res {
+                            Ok(()) => Message::None,
+                            Err(e) => Message::Error(e)
+                        })
+                } else {
+                    Task::none()
+                }
+            }
         }
     }
 }
