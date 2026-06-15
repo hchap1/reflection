@@ -58,3 +58,7 @@ pub const CREATE_PHOTO_TABLE: &str = "
             ON DELETE CASCADE
     );
 ";
+
+pub const SELECT_ALL_ALBUMS: &str = "
+    SELECT * FROM ALBUM;
+";
