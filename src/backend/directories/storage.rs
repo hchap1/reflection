@@ -67,12 +67,13 @@ impl Storage {
 
     /// Helper method to construct Path for a photo
     /// Constructs the full path if it doesn't exist
+    /// Returns PHOTO, THUMBNAIL
     pub async fn get_photo_path(
         &self,
         user_id: &str,
         album_id: &str,
         photo_name: &str
-    ) -> Res<PathBuf> {
+    ) -> Res<(PathBuf, PathBuf)> {
 
         // Create the containing album directory
         let album_directory = self.root
@@ -90,7 +91,7 @@ impl Storage {
                 .map_err(|_| Error::FailedToCreateDirectory(album_directory.clone()))?;
         }
 
-        Ok(album_directory.join(photo_name))
+        Ok((album_directory.join(photo_name), album_directory.join(format!("thumbnail_{photo_name}"))))
     }
 
 }
