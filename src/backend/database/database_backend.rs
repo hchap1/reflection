@@ -4,6 +4,8 @@ use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::sqlite::SqlitePool;
 
 use crate::backend::directories::storage::Storage;
+use crate::backend::database::sql;
+use crate::error::Error;
 use crate::error::Res;
 
 pub static DATABASE: OnceCell<Database> = OnceCell::const_new();
@@ -31,6 +33,19 @@ impl Database {
             }
         ).await;
 
+        Ok(())
+    }
+
+    /// Unwrap the singleton
+    pub fn get_database<'a>() -> Res<&'a Database> {
+        DATABASE.get().ok_or(Error::FailedToAccessDatabase)
+    }
+
+    /// Create tables (if they don't exist)
+    pub async fn create_tables(&self) -> Res<()> {
+        sqlx::query(sql::CREATE_USER_TABLE).execute(&self.pool).await?;
+        sqlx::query(sql::CREATE_ALBUM_TABLE).execute(&self.pool).await?;
+        sqlx::query(sql::CREATE_PHOTO_TABLE).execute(&self.pool).await?;
         Ok(())
     }
 

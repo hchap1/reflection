@@ -18,7 +18,10 @@ pub enum Error {
     FailedToAccessStorage,
 
     #[error("DatabaseError: SQLX {:?}", .0)]
-    DatabaseError(std::sync::Arc<sqlx::Error>)
+    DatabaseError(std::sync::Arc<sqlx::Error>),
+
+    #[error("Failed to access database")]
+    FailedToAccessDatabase
 }
 
 impl From<sqlx::Error> for Error {
