@@ -21,11 +21,20 @@ pub enum Error {
     DatabaseError(std::sync::Arc<sqlx::Error>),
 
     #[error("Failed to access database")]
-    FailedToAccessDatabase
+    FailedToAccessDatabase,
+
+    #[error("Image error: {:?}", .0)]
+    ImageError(std::sync::Arc<image::error::ImageError>)
 }
 
 impl From<sqlx::Error> for Error {
     fn from(sqlx_error: sqlx::Error) -> Self {
         Self::DatabaseError(std::sync::Arc::new(sqlx_error))
+    }
+}
+
+impl From<image::error::ImageError> for Error {
+    fn from(image_error: image::error::ImageError) -> Self {
+        Self::ImageError(std::sync::Arc::new(image_error))
     }
 }
