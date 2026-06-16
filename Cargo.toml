@@ -7,3 +7,5 @@ edition = "2024"
 onedrive-albums = "0.1.0"
 thiserror = "2.0.18"
 sqlx = { version = "0.9.0", features = ["runtime-tokio", "mysql", "macros"]}
+directories = "6.0.0"
+tokio = { version = "1.52.3", features = ["net"] }
