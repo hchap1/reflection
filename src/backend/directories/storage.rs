@@ -1,6 +1,6 @@
 use directories::ProjectDirs;
 
-use std::sync::OnceLock;
+use std::{path::Path, sync::OnceLock};
 use std::path::PathBuf;
 use std::fs::create_dir_all;
 
@@ -53,6 +53,39 @@ impl Storage {
 
         STORAGE.get_or_init(|| Storage { root, database, photos });
         Ok(())
+    }
+
+    /// Getter for database path
+    pub fn get_database_path(&self) -> &Path {
+        &self.database
+    }
+
+    /// Helper method to construct Path for a photo
+    /// Constructs the full path if it doesn't exist
+    pub async fn get_photo_path(
+        &self,
+        user_id: &str,
+        album_id: &str,
+        photo_name: &str
+    ) -> Res<PathBuf> {
+
+        // Create the containing album directory
+        let album_directory = self.root
+            .join(user_id)
+            .join(album_id);
+
+        let exists = tokio::fs::try_exists(&album_directory)
+            .await
+            .map_err(|_| Error::CheckFileExistsError)?;
+
+        // If the directory doesn't yet exist, create it
+        if !exists {
+            tokio::fs::create_dir_all(&album_directory)
+                .await
+                .map_err(|_| Error::FailedToCreateDirectory(album_directory.clone()))?;
+        }
+
+        Ok(album_directory.join(photo_name))
     }
 
 }
