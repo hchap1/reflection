@@ -3,8 +3,8 @@ use tokio::sync::OnceCell;
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::sqlite::SqlitePool;
 
+use crate::backend::database::sql::SQL;
 use crate::backend::directories::storage::Storage;
-use crate::backend::database::sql;
 use crate::error::Error;
 use crate::error::Res;
 
@@ -22,7 +22,9 @@ impl Database {
 
         let options = SqliteConnectOptions::new()
             .filename(storage.get_database_path())
-            .create_if_missing(true);
+            .create_if_missing(true)
+            .foreign_keys(true)
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
 
         let pool = SqlitePool::connect_with(options)
             .await?;
@@ -43,9 +45,9 @@ impl Database {
 
     /// Create tables (if they don't exist)
     pub async fn create_tables(&self) -> Res<()> {
-        sqlx::query(sql::CREATE_USER_TABLE).execute(&self.pool).await?;
-        sqlx::query(sql::CREATE_ALBUM_TABLE).execute(&self.pool).await?;
-        sqlx::query(sql::CREATE_PHOTO_TABLE).execute(&self.pool).await?;
+        SQL::create_user_table(&self.pool).await?;
+        SQL::create_album_table(&self.pool).await?;
+        SQL::create_photo_table(&self.pool).await?;
         Ok(())
     }
 
