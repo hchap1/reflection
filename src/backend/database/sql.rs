@@ -6,6 +6,8 @@ use sqlx::{SqlitePool, query, query_as, sqlite::SqliteQueryResult};
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize, Archive)]
 pub struct User {
     pub id: String,
+    pub name: String,
+    pub email: String,
     pub refresh_token: String,
     pub expiry_date_time: i64
 }
@@ -44,6 +46,8 @@ impl SQL {
             CREATE TABLE IF NOT EXISTS USER (
                 id TEXT,
                 refresh_token TEXT NOT NULL,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL,
                 expiry_date_time INTEGER NOT NULL,
                 CONSTRAINT user_pk
                     PRIMARY KEY (id)
@@ -142,14 +146,18 @@ impl SQL {
         user: &User,
     ) -> Result<SqliteQueryResult, sqlx::Error> {
         query("
-            INSERT INTO USER (id, refresh_token, expiry_date_time)
-            VALUES(?, ?, ?)
+            INSERT INTO USER (id, name, email, refresh_token, expiry_date_time)
+            VALUES(?, ?, ?, ?, ?)
             ON CONFLICT(id)
             DO UPDATE SET
                 refresh_token = excluded.refresh_token
+                name = excluded.name
+                email = excluded.email
                 expiry_date_time = excluded.expiry_date_time;
         ")
         .bind(&user.id)
+        .bind(&user.name)
+        .bind(&user.email)
         .bind(&user.refresh_token)
         .bind(&user.expiry_date_time)
         .execute(pool)
