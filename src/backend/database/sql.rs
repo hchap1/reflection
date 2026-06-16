@@ -1,12 +1,16 @@
+use rkyv::Archive;
+use rkyv::Deserialize;
+use rkyv::Serialize;
 use sqlx::{SqlitePool, query, query_as, sqlite::SqliteQueryResult};
 
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize, Archive)]
 pub struct User {
     pub id: String,
     pub refresh_token: String,
+    pub expiry_date_time: i64
 }
 
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize, Archive)]
 pub struct Album {
     pub id: String,
     pub user_id: String,
@@ -15,7 +19,7 @@ pub struct Album {
     pub cover_image_id: Option<String>,
 }
 
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize, Archive)]
 pub struct Photo {
     pub id: String,
     pub album_id: String,
@@ -40,6 +44,7 @@ impl SQL {
             CREATE TABLE IF NOT EXISTS USER (
                 id TEXT,
                 refresh_token TEXT NOT NULL,
+                expiry_date_time INTEGER NOT NULL,
                 CONSTRAINT user_pk
                     PRIMARY KEY (id)
             );
@@ -137,14 +142,16 @@ impl SQL {
         user: &User,
     ) -> Result<SqliteQueryResult, sqlx::Error> {
         query("
-            INSERT INTO USER (id, refresh_token)
-            VALUES(?, ?)
+            INSERT INTO USER (id, refresh_token, expiry_date_time)
+            VALUES(?, ?, ?)
             ON CONFLICT(id)
             DO UPDATE SET
-                refresh_token = excluded.refresh_token;
+                refresh_token = excluded.refresh_token
+                expiry_date_time = excluded.expiry_date_time;
         ")
         .bind(&user.id)
         .bind(&user.refresh_token)
+        .bind(&user.expiry_date_time)
         .execute(pool)
         .await
     }
