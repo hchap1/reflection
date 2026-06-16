@@ -24,7 +24,10 @@ pub enum Error {
     FailedToAccessDatabase,
 
     #[error("Image error: {:?}", .0)]
-    ImageError(std::sync::Arc<image::error::ImageError>)
+    ImageError(std::sync::Arc<image::error::ImageError>),
+
+    #[error("Networking error: {:?}", .0)]
+    NetworkError(lan_tcp::error::Error)
 }
 
 impl From<sqlx::Error> for Error {
@@ -36,5 +39,11 @@ impl From<sqlx::Error> for Error {
 impl From<image::error::ImageError> for Error {
     fn from(image_error: image::error::ImageError) -> Self {
         Self::ImageError(std::sync::Arc::new(image_error))
+    }
+}
+
+impl From<lan_tcp::error::Error> for Error {
+    fn from(networking_error: lan_tcp::error::Error) -> Self {
+        Self::NetworkError(networking_error)
     }
 }
