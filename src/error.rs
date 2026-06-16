@@ -12,5 +12,17 @@ pub enum Error {
     CheckFileExistsError,
 
     #[error("Could not create directory {:?}", .0)]
-    FailedToCreateDirectory(PathBuf)
+    FailedToCreateDirectory(PathBuf),
+
+    #[error("Failed to access storage (singleton)")]
+    FailedToAccessStorage,
+
+    #[error("DatabaseError: SQLX {:?}", .0)]
+    DatabaseError(std::sync::Arc<sqlx::Error>)
+}
+
+impl From<sqlx::Error> for Error {
+    fn from(sqlx_error: sqlx::Error) -> Self {
+        Self::DatabaseError(std::sync::Arc::new(sqlx_error))
+    }
 }

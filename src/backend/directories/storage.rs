@@ -55,6 +55,11 @@ impl Storage {
         Ok(())
     }
 
+    /// Unwrap the STORAGE singleton
+    pub fn get_storage<'a>() -> Res<&'a Storage> {
+        STORAGE.get().ok_or(Error::FailedToAccessStorage)
+    }
+
     /// Getter for database path
     pub fn get_database_path(&self) -> &Path {
         &self.database
