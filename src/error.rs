@@ -1,5 +1,9 @@
 use std::path::PathBuf;
 
+use tokio::sync::SetError;
+
+use crate::backend::database::authentication_storage::Authentication;
+
 pub type Res<T> = Result<T, Error>;
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -48,7 +52,16 @@ pub enum Error {
     NoFile,
 
     #[error("OneDrive API error: {:?}", .0)]
-    OneDriveError(onedrive_albums::error::Error)
+    OneDriveError(onedrive_albums::error::Error),
+
+    #[error("Control app specified user that doesn't exist in DB")]
+    NoSuchUserInDatabase,
+
+    #[error("Couldn't set singleton, value already exists")]
+    SingletonSetError,
+
+    #[error("The authentication singleton doesn't exist")]
+    AuthenticationSingletonDead,
 }
 
 impl From<sqlx::Error> for Error {

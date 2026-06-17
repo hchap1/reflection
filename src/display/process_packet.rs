@@ -1,4 +1,5 @@
 use iced::Task;
+use onedrive_albums::api::albums::get_albums;
 use onedrive_albums::api::drive::get_user;
 use onedrive_albums::authentication::oauth2::api::post_oauth2_code;
 use rkyv::Archived;
@@ -6,6 +7,7 @@ use rkyv::access;
 use lan_tcp::networking::node::RecvPacket;
 use rkyv::option::ArchivedOption;
 
+use crate::backend::database::authentication_storage::Authentication;
 use crate::backend::database::sql::Album;
 use crate::backend::database::sql::ArchivedAlbum;
 use crate::backend::database::sql::SQL;
@@ -14,6 +16,7 @@ use crate::backend::directories::image::ReflectionImage;
 use crate::backend::networking::network_message::ArchivedControlToDisplay;
 use crate::backend::networking::network_message::ControlToDisplay;
 use crate::backend::networking::network_message::DisplayToControl;
+use crate::backend::networking::network_message::ObfuscatedUser;
 use crate::display::application::Message;
 use crate::error::Error;
 use crate::error::Res;
@@ -66,6 +69,26 @@ async fn load_thumbnail_by_id(album: Album) -> Res<(Album, ReflectionImage)> {
 
     let photo = photo.ok_or(Error::NoThumbnail)?;
     ReflectionImage::load_thumbnail(photo).await.map(|f| (album, f))
+}
+
+/// Get all the albums belonging to the given user from onedrive, do not touch database
+async fn get_albums_belonging_to_user(user_id: String) -> Res<Vec<Album>> {
+    let user = SQL::select_user_by_id(&user_id).await?;
+    let mut user = user.ok_or(Error::NoSuchUserInDatabase)?;
+    let access_token = Authentication::get_access_token(&mut user).await?;
+    Ok(
+        get_albums(access_token)
+            .await?
+            .into_iter()
+            .map(|md| Album {
+                id: md.id,
+                user_id: user.id.clone(),
+                name: md.name,
+                num_items: Some(md.num_items as i64),
+                cover_image_id: md.cover_image_id
+            })
+            .collect()
+    )
 }
 
 pub fn process_packet(recv_packet: RecvPacket) -> Res<Task<Message>> {
@@ -130,7 +153,23 @@ pub fn process_packet(recv_packet: RecvPacket) -> Res<Task<Message>> {
                 Err(e) => Message::Error(e)
             }
         ),
-        _ => todo!("Implement.")
+
+        ArchivedControlToDisplay::RequestAlbumsBelongingToUser(obfuscated_user) => Task::perform(
+            get_albums_belonging_to_user(obfuscated_user.id.to_string()),
+            |res| match res {
+                Ok(albums) => Message::Batch(
+                    albums
+                        .into_iter()
+                        .map(|album| Message::Send(
+                            DisplayToControl::ReturnAlbumsBelongingToUser(album)
+                        ))
+                        .collect()
+                ),
+                Err(e) => Message::Error(e)
+            }
+        ),
+
+        _ => todo!("Implement!")
     };
 
     Ok(task)

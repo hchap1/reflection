@@ -45,7 +45,7 @@ impl Authentication {
 
     /// Check if an access token exists for the specified user
     /// If not, create one (if possible)
-    pub async fn get_access_token(mut user: User) -> Res<String> {
+    pub async fn get_access_token(user: &mut User) -> Res<String> {
         
         {
             let authentication = AUTHENTICATION
@@ -62,7 +62,7 @@ impl Authentication {
         }
 
         // Otherwise, we must find one
-        let tokenset = refresh_tokenset(user.refresh_token).await?;
+        let tokenset = refresh_tokenset(user.refresh_token.clone()).await?;
         {
             let authentication = AUTHENTICATION
                 .get()
