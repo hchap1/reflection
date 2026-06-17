@@ -46,6 +46,9 @@ pub enum Error {
 
     #[error("The photo doesn't have a corresponding file")]
     NoFile,
+
+    #[error("OneDrive API error: {:?}", .0)]
+    OneDriveError(onedrive_albums::error::Error)
 }
 
 impl From<sqlx::Error> for Error {
@@ -69,5 +72,11 @@ impl From<lan_tcp::error::Error> for Error {
 impl From<rkyv::rancor::Error> for Error {
     fn from(rancor_error: rkyv::rancor::Error) -> Self {
         Self::RancorError(std::sync::Arc::new(rancor_error))
+    }
+}
+
+impl From<onedrive_albums::error::Error> for Error {
+    fn from(onedrive_error: onedrive_albums::error::Error) -> Self {
+        Self::OneDriveError(onedrive_error)
     }
 }

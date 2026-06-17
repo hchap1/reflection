@@ -3303,9 +3303,9 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "onedrive-albums"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84d3447a012ccf146ff32b1bde6d1c5e45dc05be0546ee7a5447021ca5e43268"
+checksum = "fd19066e14a67975eec15d65e5aa4cbd7169d3edca03164aec8937fdb5568918"
 dependencies = [
  "async-channel",
  "base64",

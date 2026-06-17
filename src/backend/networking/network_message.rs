@@ -11,8 +11,8 @@ use crate::backend::directories::image::ReflectionImage;
 #[derive(Clone, Debug, Archive, Serialize, Deserialize)]
 pub struct ObfuscatedUser {
     id: String,
-    name: String,
-    email: String,
+    name: Option<String>,
+    email: Option<String>,
     expiry_date_time: i64
 }
 

@@ -1,4 +1,6 @@
 use iced::Task;
+use onedrive_albums::api::drive::get_user;
+use onedrive_albums::authentication::oauth2::api::post_oauth2_code;
 use rkyv::Archived;
 use rkyv::access;
 use lan_tcp::networking::node::RecvPacket;
@@ -7,6 +9,7 @@ use rkyv::option::ArchivedOption;
 use crate::backend::database::sql::Album;
 use crate::backend::database::sql::ArchivedAlbum;
 use crate::backend::database::sql::SQL;
+use crate::backend::database::sql::User;
 use crate::backend::directories::image::ReflectionImage;
 use crate::backend::networking::network_message::ArchivedControlToDisplay;
 use crate::backend::networking::network_message::ControlToDisplay;
@@ -14,6 +17,24 @@ use crate::backend::networking::network_message::DisplayToControl;
 use crate::display::application::Message;
 use crate::error::Error;
 use crate::error::Res;
+
+/// Authenticate a user, add to the database and then return the new user
+async fn authenticate(temporary_token: String, pkce_verifier: String) -> Res<User> {
+    let token_set = post_oauth2_code(temporary_token, pkce_verifier).await?;
+    let user = get_user(token_set.access_token).await?;
+
+    let user = User {
+        id: user.id,
+        email: user.email,
+        name: user.display_name,
+        refresh_token: token_set.refresh_token,
+        expiry_date_time: token_set.absolute_expiration as i64
+    };
+
+    SQL::insert_or_update_user(&user).await?;
+
+    Ok(user)
+}
 
 fn own_album(album: &ArchivedAlbum) -> Album {
     Album {
@@ -96,6 +117,19 @@ pub fn process_packet(recv_packet: RecvPacket) -> Res<Task<Message>> {
             }
         ),
 
+        // Authenticate with the temporary token
+        ArchivedControlToDisplay::Authenticated(temporary_token, pkce_verifier) => Task::perform(
+            authenticate(
+                temporary_token.to_string(),
+                pkce_verifier.to_string()
+            ),
+            |res| match res {
+                Ok(user) => Message::Send(
+                    DisplayToControl::UserInformation(user.into())
+                ),
+                Err(e) => Message::Error(e)
+            }
+        ),
         _ => todo!("Implement.")
     };
 

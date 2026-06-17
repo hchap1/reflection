@@ -9,8 +9,8 @@ use crate::error::Error;
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize, Archive)]
 pub struct User {
     pub id: String,
-    pub name: String,
-    pub email: String,
+    pub name: Option<String>,
+    pub email: Option<String>,
     pub refresh_token: String,
     pub expiry_date_time: i64
 }
@@ -49,8 +49,8 @@ impl SQL {
             CREATE TABLE IF NOT EXISTS USER (
                 id TEXT,
                 refresh_token TEXT NOT NULL,
-                name TEXT NOT NULL,
-                email TEXT NOT NULL,
+                name TEXT,
+                email TEXT,
                 expiry_date_time INTEGER NOT NULL,
                 CONSTRAINT user_pk
                     PRIMARY KEY (id)
