@@ -21,6 +21,7 @@ use rkyv::to_bytes;
 
 use crate::IDENTIFIER;
 use crate::PORT;
+use crate::backend::database::authentication_storage::Authentication;
 use crate::backend::database::database_backend::Database;
 use crate::backend::networking::network_message::DisplayToControl;
 use crate::display::process_packet::process_packet;
@@ -69,12 +70,19 @@ impl Application {
             // Used to gain asynchronous context for initialisation
             Message::Initialise => {
                 Task::batch(vec![
-                    Task::future(Database::initialise()).map(|res| match res {
+                    Task::future(Database::initialise())
+                    .map(|res| match res {
                         Ok(()) => Message::None,
                         Err(e) => Message::Error(e)
-                    }),
-                    Task::future(Node::spawn_server(IDENTIFIER, PORT, 100))
+                    }).chain(
+                        Task::future(Authentication::create_initial())
                         .map(|res| match res {
+                            Ok(()) => Message::None,
+                            Err(e) => Message::Error(e)
+                        })
+                    ),
+                    Task::future(Node::spawn_server(IDENTIFIER, PORT, 100))
+                    .map(|res| match res {
                         Ok(node) => Message::NodeCreated(Arc::new(node)),
                         Err(e) => Message::Error(e.into())
                     })
