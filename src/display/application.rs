@@ -1,9 +1,19 @@
 use std::sync::Arc;
 
-use iced::{Element, Task};
-use lan_tcp::networking::node::Node;
+use iced::{
+    Element,
+    Task
+};
 
-use crate::{IDENTIFIER, PORT, backend::database::database_backend::Database, error::Error};
+use lan_tcp::networking::node::Node;
+use lan_tcp::networking::node::RecvPacket;
+use tokio_stream::wrappers::ReceiverStream;
+
+use crate::IDENTIFIER;
+use crate::PORT;
+use crate::backend::database::database_backend::Database;
+use crate::display::process_packet::process_packet;
+use crate::error::Error;
 
 #[derive(Clone, Debug)]
 pub enum Message {
@@ -12,6 +22,9 @@ pub enum Message {
     // Initialise database and networking
     Initialise,
     NodeCreated(Arc<Node>),
+
+    // Incoming TCP packet (recv packet)
+    RecvPacket(RecvPacket),
     
     Error(Error),
 
@@ -34,6 +47,9 @@ impl Application {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         
         match message {
+
+            // Called from the creation of the application
+            // Used to gain asynchronous context for initialisation
             Message::Initialise => {
                 Task::batch(vec![
                     Task::future(Database::initialise()).map(|res| match res {
@@ -48,16 +64,40 @@ impl Application {
                 ])
             },
 
-            Message::NodeCreated(node) => {
+            // Once the node has been successfully initialised
+            // Take the receiver from the node and keep it in a stream
+            Message::NodeCreated(mut node) => {
+
+                // Try and mutate the node to retrieve the receiver
+                // This fails if something else has a weak reference
+                let task = if let Some(node) = Arc::get_mut(&mut node) {
+                    match node.take_receiver() {
+                        Some(receiver) => Task::stream(ReceiverStream::new(receiver))
+                            .map(|recv_packet| Message::RecvPacket(recv_packet)),
+                        None => Task::done(Message::Error(Error::TcpReceiverMissing))
+                    }
+                } else {
+                    Task::done(Message::Error(Error::CouldNotMutateNodeArc))
+                };
                 self.node = Some(node);
-                Task::none()
+                task
             }
 
+            // Process an incoming tcp packet
+            Message::RecvPacket(recv_packet) => Task::future(
+                process_packet(recv_packet),
+            ).map(|res| match res {
+                Ok(message) => message,
+                Err(e) => Message::Error(e)
+            }),
+
+            // Process an error. For now, this is just printed
             Message::Error(e) => {
                 eprintln!("ERROR: {e:?}");
                 Task::none()
             },
 
+            // Do nothing
             Message::None => Task::none()
         }
 

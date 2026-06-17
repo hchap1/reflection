@@ -27,7 +27,16 @@ pub enum Error {
     ImageError(std::sync::Arc<image::error::ImageError>),
 
     #[error("Networking error: {:?}", .0)]
-    NetworkError(lan_tcp::error::Error)
+    NetworkError(lan_tcp::error::Error),
+
+    #[error("Tcp receiver missing. Could not be taken")]
+    TcpReceiverMissing,
+
+    #[error("(De)serialisation error: {:?}", .0)]
+    RancorError(std::sync::Arc<rkyv::rancor::Error>),
+
+    #[error("Cannot mutate Node arc, thus could not take receiver")]
+    CouldNotMutateNodeArc,
 }
 
 impl From<sqlx::Error> for Error {
@@ -45,5 +54,11 @@ impl From<image::error::ImageError> for Error {
 impl From<lan_tcp::error::Error> for Error {
     fn from(networking_error: lan_tcp::error::Error) -> Self {
         Self::NetworkError(networking_error)
+    }
+}
+
+impl From<rkyv::rancor::Error> for Error {
+    fn from(rancor_error: rkyv::rancor::Error) -> Self {
+        Self::RancorError(std::sync::Arc::new(rancor_error))
     }
 }

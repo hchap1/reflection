@@ -4,4 +4,4 @@ pub mod display;
 pub mod control;
 
 pub const IDENTIFIER: &str = "reflection";
-pub const PORT: U16 = 12345;
+pub const PORT: u16 = 12345;
