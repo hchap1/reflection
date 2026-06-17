@@ -1,7 +1,10 @@
 use rkyv::Archive;
 use rkyv::Deserialize;
 use rkyv::Serialize;
-use sqlx::{SqlitePool, query, query_as, sqlite::SqliteQueryResult};
+use sqlx::{query, query_as, sqlite::SqliteQueryResult};
+
+use crate::backend::database::database_backend::Database;
+use crate::error::Error;
 
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize, Archive)]
 pub struct User {
@@ -41,7 +44,7 @@ pub struct SQL;
 impl SQL {
     // --- DDL ---
 
-    pub async fn create_user_table(pool: &SqlitePool) -> Result<SqliteQueryResult, sqlx::Error> {
+    pub async fn create_user_table() -> Result<SqliteQueryResult, Error> {
         query("
             CREATE TABLE IF NOT EXISTS USER (
                 id TEXT,
@@ -53,11 +56,11 @@ impl SQL {
                     PRIMARY KEY (id)
             );
         ")
-        .execute(pool)
+        .execute(Database::get_database_pool()?)
         .await
     }
 
-    pub async fn create_album_table(pool: &SqlitePool) -> Result<SqliteQueryResult, sqlx::Error> {
+    pub async fn create_album_table() -> Result<SqliteQueryResult, Error> {
         query("
             CREATE TABLE IF NOT EXISTS ALBUM (
                 id TEXT,
@@ -73,11 +76,11 @@ impl SQL {
                     ON DELETE CASCADE
             );
         ")
-        .execute(pool)
+        .execute(Database::get_database_pool()?)
         .await
     }
 
-    pub async fn create_photo_table(pool: &SqlitePool) -> Result<SqliteQueryResult, sqlx::Error> {
+    pub async fn create_photo_table() -> Result<SqliteQueryResult, Error> {
         query("
             CREATE TABLE IF NOT EXISTS PHOTO (
                 id TEXT,
@@ -99,28 +102,27 @@ impl SQL {
                     ON DELETE CASCADE
             );
         ")
-        .execute(pool)
+        .execute(Database::get_database_pool()?)
         .await
     }
 
     // --- SELECT ---
 
-    pub async fn select_all_users(pool: &SqlitePool) -> Result<Vec<User>, sqlx::Error> {
+    pub async fn select_all_users() -> Result<Vec<User>, Error> {
         query_as::<_, User>("SELECT * FROM USER;")
             .fetch_all(pool)
             .await
     }
 
-    pub async fn select_all_albums(pool: &SqlitePool) -> Result<Vec<Album>, sqlx::Error> {
+    pub async fn select_all_albums() -> Result<Vec<Album>, Error> {
         query_as::<_, Album>("SELECT * FROM ALBUM;")
             .fetch_all(pool)
             .await
     }
 
     pub async fn select_albums_by_user(
-        pool: &SqlitePool,
         user_id: &str,
-    ) -> Result<Vec<Album>, sqlx::Error> {
+    ) -> Result<Vec<Album>, Error> {
         query_as::<_, Album>("SELECT * FROM ALBUM WHERE user_id = ?;")
             .bind(user_id)
             .fetch_all(pool)
@@ -128,10 +130,9 @@ impl SQL {
     }
 
     pub async fn select_photos_by_album(
-        pool: &SqlitePool,
         album_id: &str,
         user_id: &str,
-    ) -> Result<Vec<Photo>, sqlx::Error> {
+    ) -> Result<Vec<Photo>, Error> {
         query_as::<_, Photo>("SELECT * FROM PHOTO WHERE album_id = ? AND user_id = ?;")
             .bind(album_id)
             .bind(user_id)
@@ -142,9 +143,8 @@ impl SQL {
     // --- INSERT / UPDATE ---
 
     pub async fn insert_or_update_user(
-        pool: &SqlitePool,
         user: &User,
-    ) -> Result<SqliteQueryResult, sqlx::Error> {
+    ) -> Result<SqliteQueryResult, Error> {
         query("
             INSERT INTO USER (id, name, email, refresh_token, expiry_date_time)
             VALUES(?, ?, ?, ?, ?)
@@ -160,14 +160,13 @@ impl SQL {
         .bind(&user.email)
         .bind(&user.refresh_token)
         .bind(&user.expiry_date_time)
-        .execute(pool)
+        .execute(Database::get_database_pool()?)
         .await
     }
 
     pub async fn insert_or_update_album(
-        pool: &SqlitePool,
         album: &Album,
-    ) -> Result<SqliteQueryResult, sqlx::Error> {
+    ) -> Result<SqliteQueryResult, Error> {
         query("
             INSERT INTO ALBUM (id, user_id, name, num_items, cover_image_id)
             VALUES (?, ?, ?, ?, ?)
@@ -182,14 +181,13 @@ impl SQL {
         .bind(&album.name)
         .bind(album.num_items)
         .bind(&album.cover_image_id)
-        .execute(pool)
+        .execute(Database::get_database_pool()?)
         .await
     }
 
     pub async fn insert_or_update_photo(
-        pool: &SqlitePool,
         photo: &Photo,
-    ) -> Result<SqliteQueryResult, sqlx::Error> {
+    ) -> Result<SqliteQueryResult, Error> {
         query("
             INSERT INTO PHOTO (
                 id, album_id, user_id, name, created_date_time,
@@ -218,31 +216,27 @@ impl SQL {
         .bind(photo.longitude)
         .bind(photo.altitude)
         .bind(photo.size)
-        .execute(pool)
+        .execute(Database::get_database_pool()?)
         .await
     }
 
     // --- DELETE ---
 
-    pub async fn delete_user(
-        pool: &SqlitePool,
-        user_id: &str,
-    ) -> Result<SqliteQueryResult, sqlx::Error> {
+    pub async fn delete_user(user_id: &str) -> Result<SqliteQueryResult, Error> {
         query("DELETE FROM USER WHERE id = ?;")
             .bind(user_id)
-            .execute(pool)
+            .execute(Database::get_database_pool()?)
             .await
     }
 
     pub async fn delete_album(
-        pool: &SqlitePool,
         album_id: &str,
         user_id: &str,
-    ) -> Result<SqliteQueryResult, sqlx::Error> {
+    ) -> Result<SqliteQueryResult, Error> {
         query("DELETE FROM ALBUM WHERE id = ? AND user_id = ?;")
             .bind(album_id)
             .bind(user_id)
-            .execute(pool)
+            .execute(Database::get_database_pool()?)
             .await
     }
 }

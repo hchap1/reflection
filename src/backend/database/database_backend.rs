@@ -39,8 +39,8 @@ impl Database {
     }
 
     /// Unwrap the singleton
-    pub fn get_database<'a>() -> Res<&'a Database> {
-        DATABASE.get().ok_or(Error::FailedToAccessDatabase)
+    pub fn get_database_pool<'a>() -> Res<&'a SqlitePool> {
+        Ok(&DATABASE.get().ok_or(Error::FailedToAccessDatabase)?.pool)
     }
 
     /// Create tables (if they don't exist)

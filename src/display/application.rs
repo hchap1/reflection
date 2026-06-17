@@ -84,12 +84,10 @@ impl Application {
             }
 
             // Process an incoming tcp packet
-            Message::RecvPacket(recv_packet) => Task::future(
-                process_packet(recv_packet),
-            ).map(|res| match res {
-                Ok(message) => message,
-                Err(e) => Message::Error(e)
-            }),
+            Message::RecvPacket(recv_packet) => match process_packet(recv_packet) {
+                Ok(task) => task,
+                Err(e) => Task::done(Message::Error(e))
+            }
 
             // Process an error. For now, this is just printed
             Message::Error(e) => {
