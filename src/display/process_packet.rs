@@ -169,6 +169,19 @@ pub fn process_packet(recv_packet: RecvPacket) -> Res<Task<Message>> {
             }
         ),
 
+        ArchivedControlToDisplay::AddAlbum(album) => {
+            let album = own_album(album);
+            Task::perform(
+                SQL::insert_or_update_album(album.clone()),
+                |res| match res {
+                    Ok(_) => Message::Send(
+                        DisplayToControl::AlbumInformation(album)
+                    ),
+                    Err(e) => Message::Error(e)
+                }
+            )
+        },
+
         _ => todo!("Implement!")
     };
 

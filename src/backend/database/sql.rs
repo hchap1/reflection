@@ -189,7 +189,7 @@ impl SQL {
     }
 
     pub async fn insert_or_update_album(
-        album: &Album,
+        album: Album,
     ) -> Result<SqliteQueryResult, Error> {
         query("
             INSERT INTO ALBUM (id, user_id, name, num_items, cover_image_id)
