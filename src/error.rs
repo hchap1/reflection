@@ -40,6 +40,12 @@ pub enum Error {
 
     #[error("Node does not exist, cannot perform networking operation")]
     MissingNode,
+
+    #[error("The photo doesn't have a corresponding thumbnail file")]
+    NoThumbnail,
+
+    #[error("The photo doesn't have a corresponding file")]
+    NoFile,
 }
 
 impl From<sqlx::Error> for Error {

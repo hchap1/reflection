@@ -98,7 +98,7 @@ pub enum DisplayToControl {
 
     // Response to RequestAlbumCover
     // This includes the thumbnail bytes
-    ReturnAlbumCover(Photo, Option<ReflectionImage>),
+    ReturnAlbumCover(Album, ReflectionImage),
 
     // Response to RequestPhotosInAlbum
     ReturnPhoto(Photo, ReflectionImage),

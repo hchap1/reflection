@@ -140,6 +140,20 @@ impl SQL {
             .await.map_err(Error::from)
     }
 
+    pub async fn select_photo_by_id(
+        photo_id: &str,
+        album_id: &str,
+        user_id: &str,
+    ) -> Result<Option<Photo>, Error> {
+        query_as::<_, Photo>("SELECT * FROM PHOTO WHERE id = ? AND album_id = ? AND user_id = ?;")
+            .bind(photo_id)
+            .bind(album_id)
+            .bind(user_id)
+            .fetch_all(Database::get_database_pool()?)
+            .await.map_err(Error::from)
+            .map(|photos| photos.into_iter().next())
+    }
+
     // --- INSERT / UPDATE ---
 
     pub async fn insert_or_update_user(
