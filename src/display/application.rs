@@ -1,17 +1,28 @@
 use std::sync::Arc;
 
+use futures_util::FutureExt;
+
+use bytes::Bytes;
 use iced::{
     Element,
     Task
 };
 
+async fn yield_res<T>(error: T) -> Result<(), T> {
+    Err(error)
+}
+
+use lan_tcp::networking::node::Destination;
 use lan_tcp::networking::node::Node;
 use lan_tcp::networking::node::RecvPacket;
+use lan_tcp::networking::node::SendPacket;
 use tokio_stream::wrappers::ReceiverStream;
+use rkyv::to_bytes;
 
 use crate::IDENTIFIER;
 use crate::PORT;
 use crate::backend::database::database_backend::Database;
+use crate::backend::networking::network_message::DisplayToControl;
 use crate::display::process_packet::process_packet;
 use crate::error::Error;
 
@@ -25,6 +36,12 @@ pub enum Message {
 
     // Incoming TCP packet (recv packet)
     RecvPacket(RecvPacket),
+
+    // Send to all Control applications
+    Send(DisplayToControl),
+
+    // Produce many messages all at once,
+    Batch(Vec<Message>),
     
     Error(Error),
 
@@ -83,10 +100,48 @@ impl Application {
                 task
             }
 
+            // Process an outgoing tcp packet
+            Message::Send(display_to_control) => {
+
+                match self.node.as_ref() {
+                    Some(node_ref) => match to_bytes::<rkyv::rancor::Error>(&display_to_control) {
+                        Ok(aligned_vec) => {
+                            let sender = node_ref.clone_sender();
+                            Task::future(
+                                async move {
+                                    sender.send(
+                                        SendPacket {
+                                            data: Bytes::from_owner(aligned_vec),
+                                            destination: Destination::All
+                                        }
+                                    ).await
+                                }
+                            ).map(|res| match res {
+                                Ok(()) => Message::None,
+                                Err(_) => Message::Error(
+                                    lan_tcp::error::Error::MpscChannelFailed.into()
+                                )
+                            })
+                        },
+
+                        Err(e) => Task::done(Message::Error(e.into()))
+                    },
+                    None => Task::done(Message::Error(Error::MissingNode))
+                }
+            }
+
             // Process an incoming tcp packet
             Message::RecvPacket(recv_packet) => match process_packet(recv_packet) {
                 Ok(task) => task,
                 Err(e) => Task::done(Message::Error(e))
+            },
+
+            // Produce each message individually
+            Message::Batch(messages) => {
+                Task::batch(messages
+                    .into_iter()
+                    .map(|message| Task::done(message))
+                )
             }
 
             // Process an error. For now, this is just printed

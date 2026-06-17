@@ -44,10 +44,10 @@ impl Database {
     }
 
     /// Create tables (if they don't exist)
-    pub async fn create_tables(&self) -> Res<()> {
-        SQL::create_user_table(&self.pool).await?;
-        SQL::create_album_table(&self.pool).await?;
-        SQL::create_photo_table(&self.pool).await?;
+    pub async fn create_tables() -> Res<()> {
+        SQL::create_user_table().await?;
+        SQL::create_album_table().await?;
+        SQL::create_photo_table().await?;
         Ok(())
     }
 

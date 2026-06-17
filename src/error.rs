@@ -37,6 +37,9 @@ pub enum Error {
 
     #[error("Cannot mutate Node arc, thus could not take receiver")]
     CouldNotMutateNodeArc,
+
+    #[error("Node does not exist, cannot perform networking operation")]
+    MissingNode,
 }
 
 impl From<sqlx::Error> for Error {

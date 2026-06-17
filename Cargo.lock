@@ -2469,9 +2469,9 @@ dependencies = [
 
 [[package]]
 name = "lan_tcp"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71b795d4e23008f3f760d52ab573d2509a7fbca3b2611fc7b8dc54a046b061ef"
+checksum = "8dadf58f754f6436a71eda0d70e9d39fffa56cef7716ba2cbd15f19e0a0a8f92"
 dependencies = [
  "bytes",
  "rkyv",
@@ -3941,6 +3941,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "directories",
+ "futures-util",
  "iced",
  "image",
  "lan_tcp",

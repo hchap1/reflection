@@ -57,7 +57,7 @@ impl SQL {
             );
         ")
         .execute(Database::get_database_pool()?)
-        .await
+        .await.map_err(Error::from)
     }
 
     pub async fn create_album_table() -> Result<SqliteQueryResult, Error> {
@@ -77,7 +77,7 @@ impl SQL {
             );
         ")
         .execute(Database::get_database_pool()?)
-        .await
+        .await.map_err(Error::from)
     }
 
     pub async fn create_photo_table() -> Result<SqliteQueryResult, Error> {
@@ -103,21 +103,21 @@ impl SQL {
             );
         ")
         .execute(Database::get_database_pool()?)
-        .await
+        .await.map_err(Error::from)
     }
 
     // --- SELECT ---
 
     pub async fn select_all_users() -> Result<Vec<User>, Error> {
         query_as::<_, User>("SELECT * FROM USER;")
-            .fetch_all(pool)
-            .await
+            .fetch_all(Database::get_database_pool()?)
+            .await.map_err(Error::from)
     }
 
     pub async fn select_all_albums() -> Result<Vec<Album>, Error> {
         query_as::<_, Album>("SELECT * FROM ALBUM;")
-            .fetch_all(pool)
-            .await
+            .fetch_all(Database::get_database_pool()?)
+            .await.map_err(Error::from)
     }
 
     pub async fn select_albums_by_user(
@@ -125,8 +125,8 @@ impl SQL {
     ) -> Result<Vec<Album>, Error> {
         query_as::<_, Album>("SELECT * FROM ALBUM WHERE user_id = ?;")
             .bind(user_id)
-            .fetch_all(pool)
-            .await
+            .fetch_all(Database::get_database_pool()?)
+            .await.map_err(Error::from)
     }
 
     pub async fn select_photos_by_album(
@@ -136,8 +136,8 @@ impl SQL {
         query_as::<_, Photo>("SELECT * FROM PHOTO WHERE album_id = ? AND user_id = ?;")
             .bind(album_id)
             .bind(user_id)
-            .fetch_all(pool)
-            .await
+            .fetch_all(Database::get_database_pool()?)
+            .await.map_err(Error::from)
     }
 
     // --- INSERT / UPDATE ---
@@ -161,7 +161,7 @@ impl SQL {
         .bind(&user.refresh_token)
         .bind(&user.expiry_date_time)
         .execute(Database::get_database_pool()?)
-        .await
+        .await.map_err(Error::from)
     }
 
     pub async fn insert_or_update_album(
@@ -182,7 +182,7 @@ impl SQL {
         .bind(album.num_items)
         .bind(&album.cover_image_id)
         .execute(Database::get_database_pool()?)
-        .await
+        .await.map_err(Error::from)
     }
 
     pub async fn insert_or_update_photo(
@@ -217,7 +217,7 @@ impl SQL {
         .bind(photo.altitude)
         .bind(photo.size)
         .execute(Database::get_database_pool()?)
-        .await
+        .await.map_err(Error::from)
     }
 
     // --- DELETE ---
@@ -226,7 +226,7 @@ impl SQL {
         query("DELETE FROM USER WHERE id = ?;")
             .bind(user_id)
             .execute(Database::get_database_pool()?)
-            .await
+            .await.map_err(Error::from)
     }
 
     pub async fn delete_album(
@@ -237,6 +237,6 @@ impl SQL {
             .bind(album_id)
             .bind(user_id)
             .execute(Database::get_database_pool()?)
-            .await
+            .await.map_err(Error::from)
     }
 }
