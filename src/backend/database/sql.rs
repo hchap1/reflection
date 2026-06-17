@@ -114,6 +114,16 @@ impl SQL {
             .await.map_err(Error::from)
     }
 
+    pub async fn select_user_by_id(
+        user_id: &str
+    ) -> Result<Option<User>, Error> {
+        query_as::<_, User>("SELECT * FROM USER WHERE id = ?;")
+            .bind(user_id)
+            .fetch_all(Database::get_database_pool()?)
+            .await.map_err(Error::from)
+            .map(|v| v.into_iter().next())
+    }
+
     pub async fn select_all_albums() -> Result<Vec<Album>, Error> {
         query_as::<_, Album>("SELECT * FROM ALBUM;")
             .fetch_all(Database::get_database_pool()?)

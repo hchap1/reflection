@@ -10,10 +10,10 @@ use crate::backend::directories::image::ReflectionImage;
 /// User, without a token
 #[derive(Clone, Debug, Archive, Serialize, Deserialize)]
 pub struct ObfuscatedUser {
-    id: String,
-    name: Option<String>,
-    email: Option<String>,
-    expiry_date_time: i64
+    pub id: String,
+    pub name: Option<String>,
+    pub email: Option<String>,
+    pub expiry_date_time: i64
 }
 
 impl From<User> for ObfuscatedUser {
@@ -69,6 +69,11 @@ pub enum ControlToDisplay {
     // Tell the display application to pull photos from a specified album
     // When the display application is changed, the display application echoes back
     SetActiveAlbum(Album),
+
+    // Request the albums owned by a User, so that the control application
+    // Can select to add an album to the database
+    RequestAlbumsBelongingToUser(ObfuscatedUser),
+    AddAlbum(Album),
 }
 
 #[derive(Clone, Debug, Archive, Serialize, Deserialize)]
@@ -104,5 +109,8 @@ pub enum DisplayToControl {
     ReturnPhoto(Photo, ReflectionImage),
 
     // When the active photo changes, send the change to the control application
-    ActivePhoto(Photo, ReflectionImage)
+    ActivePhoto(Photo, ReflectionImage),
+
+    // Return the albums owned by a user
+    ReturnAlbumsBelongingToUser(Album),
 }
