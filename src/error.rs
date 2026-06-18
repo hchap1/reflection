@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-use tokio::sync::SetError;
+use futures_util::future::join;
+use tokio::{sync::SetError, task::JoinError};
 
 use crate::backend::database::authentication_storage::Authentication;
 
@@ -62,6 +63,12 @@ pub enum Error {
 
     #[error("The authentication singleton doesn't exist")]
     AuthenticationSingletonDead,
+
+    #[error("Failed to parse image from buffer")]
+    FailedToParseImage,
+
+    #[error("Tokio join error: {:?}", .0)]
+    TokioJoinError(std::sync::Arc<JoinError>),
 }
 
 impl From<sqlx::Error> for Error {
@@ -91,5 +98,11 @@ impl From<rkyv::rancor::Error> for Error {
 impl From<onedrive_albums::error::Error> for Error {
     fn from(onedrive_error: onedrive_albums::error::Error) -> Self {
         Self::OneDriveError(onedrive_error)
+    }
+}
+
+impl From<JoinError> for Error {
+    fn from(join_error: JoinError) -> Self {
+        Self::TokioJoinError(std::sync::Arc::new(join_error))
     }
 }
