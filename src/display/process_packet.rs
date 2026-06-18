@@ -16,7 +16,6 @@ use crate::backend::directories::image::ReflectionImage;
 use crate::backend::networking::network_message::ArchivedControlToDisplay;
 use crate::backend::networking::network_message::ControlToDisplay;
 use crate::backend::networking::network_message::DisplayToControl;
-use crate::backend::networking::network_message::ObfuscatedUser;
 use crate::display::application::Message;
 use crate::error::Error;
 use crate::error::Res;
@@ -185,7 +184,7 @@ pub fn process_packet(recv_packet: RecvPacket) -> Res<Task<Message>> {
         ArchivedControlToDisplay::RequestPhotosInAlbum(album) => {
             let album = own_album(album);
             Task::perform(
-                SQL::select_photos_by_album(&album.id, &album.user_id),
+                SQL::select_photos_by_album(album.id, album.user_id),
                 |res| match res {
                     Ok(photos) => Message::Batch(
                         photos
@@ -194,9 +193,13 @@ pub fn process_packet(recv_packet: RecvPacket) -> Res<Task<Message>> {
                                 vec![
                                     Message::Send(
                                         DisplayToControl::ReturnPhoto(photo.clone())
+                                    ),
+                                    Message::SendThumbnail(
+                                        photo
                                     )
                                 ]
                             ))
+                            .collect()
                     ),
                     Err(e) => Message::Error(e)
                 }

@@ -140,8 +140,8 @@ impl SQL {
     }
 
     pub async fn select_photos_by_album(
-        album_id: &str,
-        user_id: &str,
+        album_id: String,
+        user_id: String,
     ) -> Result<Vec<Photo>, Error> {
         query_as::<_, Photo>("SELECT * FROM PHOTO WHERE album_id = ? AND user_id = ?;")
             .bind(album_id)

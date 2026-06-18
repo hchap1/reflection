@@ -23,6 +23,8 @@ use crate::IDENTIFIER;
 use crate::PORT;
 use crate::backend::database::authentication_storage::Authentication;
 use crate::backend::database::database_backend::Database;
+use crate::backend::database::sql::Photo;
+use crate::backend::directories::image::ReflectionImage;
 use crate::backend::networking::network_message::DisplayToControl;
 use crate::display::process_packet::process_packet;
 use crate::error::Error;
@@ -43,6 +45,9 @@ pub enum Message {
 
     // Produce many messages all at once,
     Batch(Vec<Message>),
+
+    // Load and send thumbnail to the control application
+    SendThumbnail(Photo),
     
     Error(Error),
 
@@ -135,7 +140,19 @@ impl Application {
                     },
                     None => Task::done(Message::Error(Error::MissingNode))
                 }
-            }
+            },
+
+            // Load the thumbnail from storage
+            // Then use Send to send to control application
+            Message::SendThumbnail(photo) => Task::perform(
+               ReflectionImage::load_thumbnail(photo.clone()),
+               |res| match res {
+                    Ok(thumbnail) => Message::Send(
+                        DisplayToControl::ReturnPhotoWithThumbnail(photo, thumbnail)
+                    ),
+                    Err(e) => Message::Error(e)
+               }
+            ),
 
             // Process an incoming tcp packet
             Message::RecvPacket(recv_packet) => match process_packet(recv_packet) {
