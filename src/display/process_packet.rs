@@ -182,6 +182,27 @@ pub fn process_packet(recv_packet: RecvPacket) -> Res<Task<Message>> {
             )
         },
 
+        ArchivedControlToDisplay::RequestPhotosInAlbum(album) => {
+            let album = own_album(album);
+            Task::perform(
+                SQL::select_photos_by_album(&album.id, &album.user_id),
+                |res| match res {
+                    Ok(photos) => Message::Batch(
+                        photos
+                            .into_iter()
+                            .map(|photo| Message::Batch(
+                                vec![
+                                    Message::Send(
+                                        DisplayToControl::ReturnPhoto(photo.clone())
+                                    )
+                                ]
+                            ))
+                    ),
+                    Err(e) => Message::Error(e)
+                }
+            )
+        }
+
         _ => todo!("Implement!")
     };
 

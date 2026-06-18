@@ -106,7 +106,8 @@ pub enum DisplayToControl {
     ReturnAlbumCover(Album, ReflectionImage),
 
     // Response to RequestPhotosInAlbum
-    ReturnPhoto(Photo, ReflectionImage),
+    ReturnPhoto(Photo),
+    ReturnPhotoWithThumbnail(Photo, ReflectionImage),
 
     // When the active photo changes, send the change to the control application
     ActivePhoto(Photo, ReflectionImage),
