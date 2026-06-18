@@ -76,7 +76,7 @@ impl Storage {
     ) -> Res<(PathBuf, PathBuf)> {
 
         // Create the containing album directory
-        let album_directory = self.root
+        let album_directory = self.photos
             .join(user_id)
             .join(album_id);
 
