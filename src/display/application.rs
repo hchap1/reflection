@@ -48,6 +48,8 @@ pub enum Message {
 
     // Load and send thumbnail to the control application
     SendThumbnail(Photo),
+
+    // The download for a photo (& thumbnail) has been completed
     
     Error(Error),
 

@@ -3947,6 +3947,7 @@ dependencies = [
  "image",
  "lan_tcp",
  "onedrive-albums",
+ "reqwest",
  "rkyv",
  "sqlx",
  "thiserror 2.0.18",

@@ -1,11 +1,17 @@
 use std::path::Path;
+use std::time::Duration;
 
 use image::DynamicImage;
 use image::GenericImageView;
 use image::ImageBuffer;
+use onedrive_albums::api::download::get_download_handle;
 use rkyv::Archive;
 use rkyv::Deserialize;
 use rkyv::Serialize;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
+use tokio::io::BufWriter;
+use tokio_stream::StreamExt;
 
 use crate::backend::directories::storage::Storage;
 use crate::error::Error;
@@ -99,8 +105,37 @@ impl ReflectionImage {
         Ok(())
     }
 
-    /// Attempt to download the given photo, and then parse into a ReflectionImage
-    pub async fn download(photo: Photo) -> Res<Self> {
-        todo!("Implement");
+    /// Attempt to download the given photo
+    /// Then, load the file to save the thumbnail
+    pub async fn download(access_token: String, photo: Photo) -> Res<()> {
+
+        let download_target = Storage::get_storage()?
+            .get_temporary_path(&photo.user_id, &photo.album_id, &photo.name)
+            .await?;
+
+        let file = File::create(&download_target).await?;
+        let mut buf_writer = BufWriter::new(file);
+        let mut byte_stream = get_download_handle(access_token, photo.id.clone())
+            .await?;
+
+        while let Some(bytes) = byte_stream.next().await {
+            let bytes = bytes?;
+            buf_writer.write_all(&bytes).await?;
+        }
+
+        buf_writer.flush()
+            .await?;
+
+        // Give OS time to register new file
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let reflection_image = ReflectionImage::from_file(&download_target)
+            .await?;
+
+        reflection_image.save(photo).await?;
+
+        // If we get to this point, remove the temporary file
+        
+        Ok(())
     }
 }

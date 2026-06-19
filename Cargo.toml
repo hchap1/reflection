@@ -16,3 +16,4 @@ iced = { version = "0.14.0", features = ["tokio", "image"] }
 tokio-stream = "0.1.18"
 bytes = "1.11.1"
 futures-util = "0.3.32"
+reqwest = "0.13.4"

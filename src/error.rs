@@ -69,6 +69,12 @@ pub enum Error {
 
     #[error("Tokio join error: {:?}", .0)]
     TokioJoinError(std::sync::Arc<JoinError>),
+
+    #[error("IO error: {:?}", .0)]
+    IoError(std::sync::Arc<std::io::Error>),
+
+    #[error("Reqwest Error: {:?}", .0)]
+    ReqwestError(std::sync::Arc<reqwest::Error>),
 }
 
 impl From<sqlx::Error> for Error {
@@ -104,5 +110,17 @@ impl From<onedrive_albums::error::Error> for Error {
 impl From<JoinError> for Error {
     fn from(join_error: JoinError) -> Self {
         Self::TokioJoinError(std::sync::Arc::new(join_error))
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(io_error: std::io::Error) -> Self {
+        Self::IoError(std::sync::Arc::new(io_error))
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(reqwest_error: reqwest::Error) -> Self {
+        Self::ReqwestError(std::sync::Arc::new(reqwest_error))
     }
 }
