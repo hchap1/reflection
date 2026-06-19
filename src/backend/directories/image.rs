@@ -135,6 +135,7 @@ impl ReflectionImage {
         reflection_image.save(photo).await?;
 
         // If we get to this point, remove the temporary file
+        tokio::fs::remove_file(download_target).await?;
         
         Ok(())
     }
