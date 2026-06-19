@@ -22,7 +22,10 @@ pub struct Storage {
 
     /// Root directory of photo storage
     /// Actual photos should be <ROOT>/photos/<USER_ID>/<ALBUM_ID>/<PHOTO_ID>.ext
-    photos: PathBuf
+    photos: PathBuf,
+
+    /// A frequently cleaned directory where current downloads are stored
+    temporary: PathBuf
 }
 
 impl Storage {
@@ -40,6 +43,7 @@ impl Storage {
 
         let database = root.join("database.db");
         let photos = root.join("photos");
+        let temporary = root.join("temporary");
 
         if !root.try_exists().map_err(|_| Error::CheckFileExistsError)? {
             create_dir_all(&root)
@@ -51,7 +55,12 @@ impl Storage {
                 .map_err(|_| Error::FailedToCreateDirectory(photos.clone()))?;
         }
 
-        STORAGE.get_or_init(|| Storage { root, database, photos });
+        if !temporary.try_exists().map_err(|_| Error::CheckFileExistsError)? {
+            create_dir_all(&temporary)
+                .map_err(|_| Error::FailedToCreateDirectory(temporary.clone()))?;
+        }
+
+        STORAGE.get_or_init(|| Storage { root, database, photos, temporary });
         Ok(())
     }
 
@@ -94,4 +103,29 @@ impl Storage {
         Ok((album_directory.join(photo_name), album_directory.join(format!("thumbnail_{photo_name}"))))
     }
 
+    pub async fn get_temporary_path(
+        &self,
+        user_id: &str,
+        album_id: &str,
+        photo_name: &str
+    ) -> Res<PathBuf> {
+
+        // Create the containing album directory
+        let album_directory = self.temporary
+            .join(user_id)
+            .join(album_id);
+
+        let exists = tokio::fs::try_exists(&album_directory)
+            .await
+            .map_err(|_| Error::CheckFileExistsError)?;
+
+        // If the directory doesn't yet exist, create it
+        if !exists {
+            tokio::fs::create_dir_all(&album_directory)
+                .await
+                .map_err(|_| Error::FailedToCreateDirectory(album_directory.clone()))?;
+        }
+
+        Ok(album_directory.join(photo_name))
+    }
 }
