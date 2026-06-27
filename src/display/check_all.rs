@@ -12,7 +12,7 @@ use crate::error::{Error, Res};
 
 /// Synchronise images for all photos
 /// Download if missing
-pub async fn synchronise_files(semaphore: Arc<Semaphore>) -> Res<Vec<(Photo, Res<()>)>> {
+pub async fn synchronise_files(semaphore: Arc<Semaphore>) -> Res<Vec<(String, Res<()>)>> {
     
     // First, collect all photos in the database
     let photos = SQL::select_all_photos()
@@ -42,7 +42,7 @@ pub async fn synchronise_files(semaphore: Arc<Semaphore>) -> Res<Vec<(Photo, Res
         }.await;
 
         if res.is_err() {
-            issues.push((photo.clone(), res));
+            issues.push((photo.id.clone(), res));
         }
     }
 
@@ -67,20 +67,40 @@ pub async fn synchronise_files(semaphore: Arc<Semaphore>) -> Res<Vec<(Photo, Res
         }.await;
 
         if res.is_err() {
-            issues.push((photo.clone(), res));
+            issues.push((photo.id.clone(), res));
         }
     }
 
     // Finally, download each that didn't have both files
-    for photo in to_be_downloaded {
-        let permit = semaphore.clone().acquire_owned().await?;
-        if let Some(access_token) = user_access_tokens.get(&photo.user_id) {
-            let res = ReflectionImage::download(permit, access_token.to_owned(), photo.clone())
-                .await;
+    let tasks: Vec<_> = to_be_downloaded
+        .into_iter()
+        .filter_map(
+            |photo|
+            if let Some(access_token) = user_access_tokens.get(&photo.user_id) {
+                let access_token_owned = access_token.to_owned();
+                let semaphore_clone = semaphore.clone();
+                Some(
+                    tokio::spawn(
+                        async move {
+                            let permit = semaphore_clone
+                                .acquire_owned() .await?;
 
-            if res.is_err() {
-                issues.push((photo, res));
-            }
+                            ReflectionImage::download(permit, access_token_owned, photo)
+                                .await
+                        }
+                    )
+                )
+            } else { None }
+        ).collect();
+
+    for task in tasks {
+        let res = task.await;
+        match res {
+            Ok(res) => match res {
+                Ok(()) => (),
+                Err(e) => issues.push((String::from("DOWNLOAD"), Err(e)))
+            },
+            Err(e) => issues.push((String::from("THREAD"), Err(e.into())))
         }
     }
 
