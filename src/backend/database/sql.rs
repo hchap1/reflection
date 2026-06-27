@@ -1,7 +1,7 @@
 use rkyv::Archive;
 use rkyv::Deserialize;
 use rkyv::Serialize;
-use sqlx::{query, query_as, sqlite::SqliteQueryResult};
+use sqlx::{query, query_as, query_scalar, sqlite::SqliteQueryResult};
 
 use crate::backend::database::database_backend::Database;
 use crate::error::Error;
@@ -174,9 +174,9 @@ impl SQL {
             VALUES(?, ?, ?, ?, ?)
             ON CONFLICT(id)
             DO UPDATE SET
-                refresh_token = excluded.refresh_token
-                name = excluded.name
-                email = excluded.email
+                refresh_token = excluded.refresh_token,
+                name = excluded.name,
+                email = excluded.email,
                 expiry_date_time = excluded.expiry_date_time;
         ")
         .bind(&user.id)
@@ -261,6 +261,43 @@ impl SQL {
             .bind(album_id)
             .bind(user_id)
             .execute(Database::get_database_pool()?)
+            .await.map_err(Error::from)
+    }
+
+    pub async fn create_settings_table() -> Result<SqliteQueryResult, Error> {
+        query("
+            CREATE TABLE IF NOT EXISTS SETTINGS (
+                name TEXT,
+                value TEXT NOT NULL,
+                CONSTRAINT settings_pk
+                    PRIMARY KEY (name)
+            );
+        ")
+        .execute(Database::get_database_pool()?)
+        .await.map_err(Error::from)
+    }
+
+    pub async fn insert_or_update_setting(
+        name: &str,
+        value: &str,
+    ) -> Result<SqliteQueryResult, Error> {
+        query("
+            INSERT INTO SETTINGS (name, value)
+            VALUES (?, ?)
+            ON CONFLICT(name)
+            DO UPDATE SET
+                value = excluded.value;
+        ")
+        .bind(name)
+        .bind(value)
+        .execute(Database::get_database_pool()?)
+        .await.map_err(Error::from)
+    }
+
+    pub async fn select_setting_by_name(name: &str) -> Result<Option<String>, Error> {
+        query_scalar::<_, String>("SELECT value FROM SETTINGS WHERE name = ?;")
+            .bind(name)
+            .fetch_optional(Database::get_database_pool()?)
             .await.map_err(Error::from)
     }
 }

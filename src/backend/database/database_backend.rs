@@ -48,6 +48,7 @@ impl Database {
         SQL::create_user_table().await?;
         SQL::create_album_table().await?;
         SQL::create_photo_table().await?;
+        SQL::create_settings_table().await?;
         Ok(())
     }
 
