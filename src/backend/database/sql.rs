@@ -130,6 +130,18 @@ impl SQL {
             .await.map_err(Error::from)
     }
 
+    pub async fn select_album_by_id(
+        album_id: String,
+        user_id: String
+    ) -> Result<Option<Album>, Error> {
+        query_as::<_, Album>("SELECT * FROM ALBUM WHERE id = ? AND user_id = ?;")
+            .bind(album_id)
+            .bind(user_id)
+            .fetch_all(Database::get_database_pool()?)
+            .await.map_err(Error::from)
+            .map(|v| v.into_iter().next())
+    }
+
     pub async fn select_albums_by_user(
         user_id: &str,
     ) -> Result<Vec<Album>, Error> {

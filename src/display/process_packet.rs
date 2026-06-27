@@ -108,7 +108,15 @@ async fn set_active_album(
         }
 
         // Record the new setting
-        SQL::insert_or_update_setting("active_album", &album.id).await?;
+        let album_id = album.id;
+        let user_id = album.user_id;
+        let combination = format!(
+            "{:04}{}{}",
+            album_id.len(),
+            album_id,
+            user_id
+        );
+        SQL::insert_or_update_setting("active_album", &combination).await?;
     } else {
 
         // Delete the current album setting

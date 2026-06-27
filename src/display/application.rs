@@ -25,6 +25,7 @@ use crate::backend::database::authentication_storage::Authentication;
 use crate::backend::database::database_backend::Database;
 use crate::backend::database::sql::Album;
 use crate::backend::database::sql::Photo;
+use crate::backend::database::sql::SQL;
 use crate::backend::directories::image::ReflectionImage;
 use crate::backend::networking::network_message::DisplayToControl;
 use crate::display::process_packet::process_packet;
@@ -55,6 +56,7 @@ pub enum Message {
 
     // The active album has been changed
     AlbumChange(Option<Album>),
+    AlbumChangeByID(String, String),
     
     Error(Error),
 
@@ -82,7 +84,6 @@ impl Application {
 
             // Called from the creation of the application
             // Used to gain asynchronous context for initialisation
-            // TODO read active album from database
             Message::Initialise => {
                 Task::batch(vec![
                     Task::future(Database::initialise())
@@ -100,6 +101,39 @@ impl Application {
                     .map(|res| match res {
                         Ok(node) => Message::NodeCreated(Arc::new(node)),
                         Err(e) => Message::Error(e.into())
+                    }),
+                    // Check to see if database has a stored active album to resume
+                    // This is a length prefixed setting format abcd:DATA where the first abcd
+                    // characters belong to the album_id, and the rest are user_id
+                    Task::future(SQL::select_setting_by_name("active_album"))
+                    .map(|res| match res {
+                        Ok(value) => match value {
+                            Some(hybrid_id) => {
+                                let mut chars = hybrid_id
+                                    .chars();
+
+                                let size = match chars
+                                    .by_ref()
+                                    .take(4)
+                                    .collect::<String>()
+                                    .parse::<usize>() {
+                                    Ok(size) => size,
+                                    Err(_) => return Message::Error(Error::InvalidAlbum)
+                                };
+
+                                let album_id = chars
+                                    .by_ref()
+                                    .take(size)
+                                    .collect::<String>();
+
+                                let user_id = chars
+                                    .collect::<String>();
+
+                                Message::AlbumChangeByID(album_id, user_id)
+                            },
+                            None => Message::None
+                        }
+                        Err(e) => Message::Error(e)
                     })
                 ])
             },
@@ -156,6 +190,20 @@ impl Application {
             Message::AlbumChange(album) => {
                 self.active_album = album;
                 todo!("Implement display")
+            },
+
+            // Set album by ID
+            Message::AlbumChangeByID(album_id, user_id) => {
+                Task::perform(
+                    SQL::select_album_by_id(album_id, user_id),
+                    |res| match res {
+                        Ok(maybe_album) => match maybe_album {
+                            Some(album) => Message::AlbumChange(Some(album)),
+                            None => Message::Error(Error::InvalidAlbum)
+                        },
+                        Err(e) => Message::Error(e)
+                    }
+                )
             }
 
             // Load the thumbnail from storage
