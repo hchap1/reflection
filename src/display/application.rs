@@ -65,6 +65,9 @@ pub enum Message {
     // The active album has been changed
     AlbumChange(Option<Album>),
     AlbumChangeByID(String, String),
+
+    // Request a synchronisation of photos / files
+    SynchroniseFiles,
     
     Error(Error),
 
@@ -145,19 +148,22 @@ impl Application {
                         }
                         Err(e) => Message::Error(e)
                     }),
-                    Task::future(synchronise_files(self.download_permit.clone()))
-                    .map(|res| match res {
-                        Ok(issues) => Message::Batch(
-                            issues.into_iter()
-                                .map(|(string, res)| Message::Error(
-                                    Error::DownloadError(format!("{res:?} : {string}"))
-                                ))
-                                .collect()
-                        ),
-                        Err(e) => Message::Error(e)
-                    })
+                    Task::done(Message::SynchroniseFiles)
                 ])
             },
+
+            // Downloads all files for photos where the thumbnail / image do not exist
+            Message::SynchroniseFiles => Task::future(synchronise_files(self.download_permit.clone()))
+                .map(|res| match res {
+                    Ok(issues) => Message::Batch(
+                        issues.into_iter()
+                            .map(|(string, res)| Message::Error(
+                                Error::DownloadError(format!("{res:?} : {string}"))
+                            ))
+                            .collect()
+                    ),
+                    Err(e) => Message::Error(e)
+                }),
 
             // Once the node has been successfully initialised
             // Take the receiver from the node and keep it in a stream
