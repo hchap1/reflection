@@ -75,6 +75,9 @@ pub enum Error {
 
     #[error("Reqwest Error: {:?}", .0)]
     ReqwestError(std::sync::Arc<reqwest::Error>),
+
+    #[error("Invalid album (does not exist in db)")]
+    InvalidAlbum,
 }
 
 impl From<sqlx::Error> for Error {

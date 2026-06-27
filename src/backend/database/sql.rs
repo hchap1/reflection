@@ -264,6 +264,17 @@ impl SQL {
             .await.map_err(Error::from)
     }
 
+    pub async fn delete_album_by_name(
+        name: &str,
+        user_id: &str,
+    ) -> Result<SqliteQueryResult, Error> {
+        query("DELETE FROM ALBUM WHERE name = ? AND user_id = ?;")
+            .bind(name)
+            .bind(user_id)
+            .execute(Database::get_database_pool()?)
+            .await.map_err(Error::from)
+    }
+
     pub async fn create_settings_table() -> Result<SqliteQueryResult, Error> {
         query("
             CREATE TABLE IF NOT EXISTS SETTINGS (
@@ -298,6 +309,15 @@ impl SQL {
         query_scalar::<_, String>("SELECT value FROM SETTINGS WHERE name = ?;")
             .bind(name)
             .fetch_optional(Database::get_database_pool()?)
+            .await.map_err(Error::from)
+    }
+
+    pub async fn delete_setting_by_name(
+        name: &str,
+    ) -> Result<SqliteQueryResult, Error> {
+        query("DELETE FROM SETTINGS WHERE name = ?;")
+            .bind(name)
+            .execute(Database::get_database_pool()?)
             .await.map_err(Error::from)
     }
 }

@@ -23,6 +23,7 @@ use crate::IDENTIFIER;
 use crate::PORT;
 use crate::backend::database::authentication_storage::Authentication;
 use crate::backend::database::database_backend::Database;
+use crate::backend::database::sql::Album;
 use crate::backend::database::sql::Photo;
 use crate::backend::directories::image::ReflectionImage;
 use crate::backend::networking::network_message::DisplayToControl;
@@ -50,13 +51,18 @@ pub enum Message {
     SendThumbnail(Photo),
 
     // The download for a photo (& thumbnail) has been completed
+    // TODO
+
+    // The active album has been changed
+    AlbumChange(Option<Album>),
     
     Error(Error),
 
 }
 
 pub struct Application {
-    node: Option<Arc<Node>>
+    node: Option<Arc<Node>>,
+    pub active_album: Option<Album>,
 }
 
 impl Application {
@@ -64,7 +70,8 @@ impl Application {
     /// Build a new Application initial state
     pub fn new() -> Self {
         Self {
-            node: None
+            node: None,
+            active_album: None
         }
     }
     
@@ -75,6 +82,7 @@ impl Application {
 
             // Called from the creation of the application
             // Used to gain asynchronous context for initialisation
+            // TODO read active album from database
             Message::Initialise => {
                 Task::batch(vec![
                     Task::future(Database::initialise())
@@ -144,6 +152,12 @@ impl Application {
                 }
             },
 
+            // The album has been changed, reload display
+            Message::AlbumChange(album) => {
+                self.active_album = album;
+                todo!("Implement display")
+            }
+
             // Load the thumbnail from storage
             // Then use Send to send to control application
             Message::SendThumbnail(photo) => Task::perform(
@@ -157,7 +171,7 @@ impl Application {
             ),
 
             // Process an incoming tcp packet
-            Message::RecvPacket(recv_packet) => match process_packet(recv_packet) {
+            Message::RecvPacket(recv_packet) => match process_packet(self, recv_packet) {
                 Ok(task) => task,
                 Err(e) => Task::done(Message::Error(e))
             },

@@ -68,7 +68,7 @@ pub enum ControlToDisplay {
 
     // Tell the display application to pull photos from a specified album
     // When the display application is changed, the display application echoes back
-    SetActiveAlbum(Album),
+    SetActiveAlbum(Option<Album>),
 
     // Request the albums owned by a User, so that the control application
     // Can select to add an album to the database

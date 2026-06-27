@@ -7,6 +7,7 @@ use rkyv::access;
 use lan_tcp::networking::node::RecvPacket;
 use rkyv::option::ArchivedOption;
 
+use crate::display::application::Application;
 use crate::backend::database::authentication_storage::Authentication;
 use crate::backend::database::sql::Album;
 use crate::backend::database::sql::ArchivedAlbum;
@@ -90,7 +91,37 @@ async fn get_albums_belonging_to_user(user_id: String) -> Res<Vec<Album>> {
     )
 }
 
-pub fn process_packet(recv_packet: RecvPacket) -> Res<Task<Message>> {
+/// Save this into the database
+/// Update the display server and control application
+async fn set_active_album(
+    album: Option<Album>
+) -> Res<()> {
+
+    // If the album exists
+    if let Some(album) = album {
+        // Ensure that the album is actually on record
+        if !SQL::select_all_albums()
+            .await?
+            .into_iter()
+            .any(|db_album| db_album.id == album.id) {
+            Err(Error::InvalidAlbum)?
+        }
+
+        // Record the new setting
+        SQL::insert_or_update_setting("active_album", &album.id).await?;
+    } else {
+
+        // Delete the current album setting
+        SQL::delete_setting_by_name("active_album").await?;
+    }
+
+    Ok(())
+}
+
+pub fn process_packet(
+    application: &mut Application,
+    recv_packet: RecvPacket
+) -> Res<Task<Message>> {
 
     // It is expected that recv_packet contains a ControlToDisplay
     let control_to_display: &Archived<ControlToDisplay> = access::<
@@ -206,7 +237,38 @@ pub fn process_packet(recv_packet: RecvPacket) -> Res<Task<Message>> {
             )
         }
 
-        _ => todo!("Implement!")
+        ArchivedControlToDisplay::RequestActive => {
+            Task::done(
+                Message::Send(
+                    DisplayToControl::SelectedAlbum(
+                        application.active_album.clone()
+                    )
+                )
+            )
+        }
+
+        // Set the currently active album, return through
+        // networking and also save in the database
+        ArchivedControlToDisplay::SetActiveAlbum(album) => {
+            let album = match album {
+                ArchivedOption::Some(album) => Some(own_album(album)),
+                ArchivedOption::None => None
+            };
+            Task::perform(
+                set_active_album(album.clone()),
+                |res| match res {
+                    Ok(()) => Message::Batch(vec![
+                        Message::Send(
+                            DisplayToControl::SelectedAlbum(
+                                album.clone()
+                            )
+                        ),
+                        Message::AlbumChange(album)
+                    ]),
+                    Err(e) => Message::Error(e)
+                }
+            )
+        }
     };
 
     Ok(task)
