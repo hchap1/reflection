@@ -114,6 +114,12 @@ impl SQL {
             .await.map_err(Error::from)
     }
 
+    pub async fn select_all_photos() -> Result<Vec<Photo>, Error> {
+        query_as::<_, Photo>("SELECT * FROM PHOTO;")
+            .fetch_all(Database::get_database_pool()?)
+            .await.map_err(Error::from)
+    }
+
     pub async fn select_user_by_id(
         user_id: String
     ) -> Result<Option<User>, Error> {
