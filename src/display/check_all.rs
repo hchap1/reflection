@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use tokio::sync::Semaphore;
 
-use crate::backend::database::sql::Photo;
 use crate::backend::database::authentication_storage::Authentication;
 use crate::backend::database::sql::SQL;
 use crate::backend::directories::image::ReflectionImage;

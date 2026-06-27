@@ -80,7 +80,10 @@ pub enum Error {
     InvalidAlbum,
 
     #[error("Sempahore acquisition error")]
-    AcquisitionError
+    AcquisitionError,
+
+    #[error("Download task failure")]
+    DownloadError(String),
 }
 
 impl From<sqlx::Error> for Error {

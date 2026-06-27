@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use futures_util::FutureExt;
-
 use bytes::Bytes;
 use iced::{
     Element,
@@ -27,9 +25,9 @@ use crate::backend::database::database_backend::Database;
 use crate::backend::database::sql::Album;
 use crate::backend::database::sql::Photo;
 use crate::backend::database::sql::SQL;
-use crate::backend::database::sql::User;
 use crate::backend::directories::image::ReflectionImage;
 use crate::backend::networking::network_message::DisplayToControl;
+use crate::display::check_all::synchronise_files;
 use crate::display::process_packet::process_packet;
 use crate::error::Error;
 
@@ -145,6 +143,17 @@ impl Application {
                             },
                             None => Message::None
                         }
+                        Err(e) => Message::Error(e)
+                    }),
+                    Task::future(synchronise_files(self.download_permit.clone()))
+                    .map(|res| match res {
+                        Ok(issues) => Message::Batch(
+                            issues.into_iter()
+                                .map(|(string, res)| Message::Error(
+                                    Error::DownloadError(format!("{res:?} : {string}"))
+                                ))
+                                .collect()
+                        ),
                         Err(e) => Message::Error(e)
                     })
                 ])
