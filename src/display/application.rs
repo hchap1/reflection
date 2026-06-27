@@ -16,6 +16,7 @@ use lan_tcp::networking::node::Destination;
 use lan_tcp::networking::node::Node;
 use lan_tcp::networking::node::RecvPacket;
 use lan_tcp::networking::node::SendPacket;
+use tokio::sync::Semaphore;
 use tokio_stream::wrappers::ReceiverStream;
 use rkyv::to_bytes;
 
@@ -26,10 +27,16 @@ use crate::backend::database::database_backend::Database;
 use crate::backend::database::sql::Album;
 use crate::backend::database::sql::Photo;
 use crate::backend::database::sql::SQL;
+use crate::backend::database::sql::User;
 use crate::backend::directories::image::ReflectionImage;
 use crate::backend::networking::network_message::DisplayToControl;
 use crate::display::process_packet::process_packet;
 use crate::error::Error;
+
+#[derive(Clone, Debug)]
+pub enum AuthenticatedMessage {
+    Download(Photo)
+}
 
 #[derive(Clone, Debug)]
 pub enum Message {
@@ -51,8 +58,11 @@ pub enum Message {
     // Load and send thumbnail to the control application
     SendThumbnail(Photo),
 
-    // The download for a photo (& thumbnail) has been completed
-    // TODO
+    // Messages that require authentication
+    // Run an authenticated messaged by user_id
+    Authenticate(AuthenticatedMessage, String),
+    AuthenticatedMessage(String, AuthenticatedMessage),
+    DownloadComplete(Photo),
 
     // The active album has been changed
     AlbumChange(Option<Album>),
@@ -65,6 +75,7 @@ pub enum Message {
 pub struct Application {
     node: Option<Arc<Node>>,
     pub active_album: Option<Album>,
+    download_permit: Arc<Semaphore>,
 }
 
 impl Application {
@@ -73,7 +84,8 @@ impl Application {
     pub fn new() -> Self {
         Self {
             node: None,
-            active_album: None
+            active_album: None,
+            download_permit: Arc::new(Semaphore::new(10))
         }
     }
     
@@ -217,6 +229,47 @@ impl Application {
                     Err(e) => Message::Error(e)
                }
             ),
+
+            // Authenticate then execute
+            Message::Authenticate(message, user_id) => {
+                Task::perform(
+                    async {
+                        let mut user = SQL::select_user_by_id(user_id)
+                            .await?
+                            .ok_or(Error::NoSuchUserInDatabase)?;
+
+                        Authentication::get_access_token(&mut user).await
+                    },
+                    |res| match res {
+                        Ok(token) => Message::AuthenticatedMessage(token, message),
+                        Err(e) => Message::Error(e)
+                    }
+                )
+            }
+
+            // Process a message that requires authentication
+            Message::AuthenticatedMessage(access_token, message) => match message {
+                AuthenticatedMessage::Download(photo) => {
+                    let semaphore_arc = self.download_permit.clone();
+                    let photo_clone = photo.clone();
+                    Task::perform(
+                        async {
+                            let permit = semaphore_arc.acquire_owned().await?;
+                            ReflectionImage::download(permit, access_token, photo_clone)
+                                .await
+                        },
+                        |res| match res {
+                            Ok(()) => Message::DownloadComplete(photo),
+                            Err(e) => Message::Error(e)
+                        }
+                    )
+                }
+            }
+
+            // Handle a completed download TODO
+            Message::DownloadComplete(photo) => {
+                todo!("implement")
+            }
 
             // Process an incoming tcp packet
             Message::RecvPacket(recv_packet) => match process_packet(self, recv_packet) {

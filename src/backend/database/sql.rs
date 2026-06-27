@@ -115,7 +115,7 @@ impl SQL {
     }
 
     pub async fn select_user_by_id(
-        user_id: &str
+        user_id: String
     ) -> Result<Option<User>, Error> {
         query_as::<_, User>("SELECT * FROM USER WHERE id = ?;")
             .bind(user_id)

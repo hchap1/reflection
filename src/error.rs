@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use futures_util::future::join;
-use tokio::{sync::SetError, task::JoinError};
+use tokio::{sync::{AcquireError, SetError}, task::JoinError};
 
 use crate::backend::database::authentication_storage::Authentication;
 
@@ -78,6 +78,9 @@ pub enum Error {
 
     #[error("Invalid album (does not exist in db)")]
     InvalidAlbum,
+
+    #[error("Sempahore acquisition error")]
+    AcquisitionError
 }
 
 impl From<sqlx::Error> for Error {
@@ -125,5 +128,11 @@ impl From<std::io::Error> for Error {
 impl From<reqwest::Error> for Error {
     fn from(reqwest_error: reqwest::Error) -> Self {
         Self::ReqwestError(std::sync::Arc::new(reqwest_error))
+    }
+}
+
+impl From<AcquireError> for Error {
+    fn from(_: AcquireError) -> Self {
+        Self::AcquisitionError
     }
 }

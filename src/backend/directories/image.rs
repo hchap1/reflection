@@ -11,6 +11,7 @@ use rkyv::Serialize;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio::io::BufWriter;
+use tokio::sync::OwnedSemaphorePermit;
 use tokio_stream::StreamExt;
 
 use crate::backend::directories::storage::Storage;
@@ -107,7 +108,8 @@ impl ReflectionImage {
 
     /// Attempt to download the given photo
     /// Then, load the file to save the thumbnail
-    pub async fn download(access_token: String, photo: Photo) -> Res<()> {
+    /// Hold a permit which belongs to a Sempaphore limiting concurrency
+    pub async fn download(_permit: OwnedSemaphorePermit, access_token: String, photo: Photo) -> Res<()> {
 
         let download_target = Storage::get_storage()?
             .get_temporary_path(&photo.user_id, &photo.album_id, &photo.name)
@@ -136,7 +138,7 @@ impl ReflectionImage {
 
         // If we get to this point, remove the temporary file
         tokio::fs::remove_file(download_target).await?;
-        
+
         Ok(())
     }
 }
