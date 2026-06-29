@@ -6,10 +6,6 @@ use iced::{
     Task
 };
 
-async fn yield_res<T>(error: T) -> Result<(), T> {
-    Err(error)
-}
-
 use lan_tcp::networking::node::Destination;
 use lan_tcp::networking::node::Node;
 use lan_tcp::networking::node::RecvPacket;
