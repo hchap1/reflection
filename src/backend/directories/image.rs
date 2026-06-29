@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::time::Duration;
 
+use iced::widget::image::Handle;
 use image::DynamicImage;
 use image::GenericImageView;
 use image::ImageBuffer;
@@ -140,5 +141,10 @@ impl ReflectionImage {
         tokio::fs::remove_file(download_target).await?;
 
         Ok(())
+    }
+
+    /// Convert this image into an iced image handle
+    pub fn into_iced(self) -> Handle {
+        Handle::from_rgba(self.width, self.height, self.data)
     }
 }

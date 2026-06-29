@@ -75,6 +75,10 @@ pub struct Application {
     node: Option<Arc<Node>>,
     pub active_album: Option<Album>,
     download_permit: Arc<Semaphore>,
+
+    // Manage display
+    photos_in_album: Vec<Photo>,
+    current_photo_idx: usize,
 }
 
 impl Application {
