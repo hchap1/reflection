@@ -28,6 +28,7 @@ use crate::backend::database::sql::SQL;
 use crate::backend::directories::image::ReflectionImage;
 use crate::backend::networking::network_message::DisplayToControl;
 use crate::display::check_all::synchronise_files;
+use crate::display::check_all::synchronise_photos;
 use crate::display::process_packet::process_packet;
 use crate::error::Error;
 
@@ -67,6 +68,7 @@ pub enum Message {
     AlbumChangeByID(String, String),
 
     // Request a synchronisation of photos / files
+    SynchronisePhotos,
     SynchroniseFiles,
     
     Error(Error),
@@ -148,9 +150,25 @@ impl Application {
                         }
                         Err(e) => Message::Error(e)
                     }),
+                    Task::done(Message::SynchronisePhotos),
                     Task::done(Message::SynchroniseFiles)
                 ])
             },
+
+            // Update the database photo records to match that of the current albums
+            // Then, synchronise files
+            Message::SynchronisePhotos => Task::future(synchronise_photos())
+                .map(|res| match res {
+                    Ok(issues) => Message::Batch(
+                        issues.into_iter()
+                            .map(|(string, res)| Message::Error(
+                                Error::DownloadError(format!("{res:?} : {string}"))
+                            ))
+                            .chain(vec![Message::SynchroniseFiles].into_iter())
+                            .collect()
+                    ),
+                    Err(e) => Message::Error(e)
+                }),
 
             // Downloads all files for photos where the thumbnail / image do not exist
             Message::SynchroniseFiles => Task::future(synchronise_files(self.download_permit.clone()))
@@ -283,7 +301,13 @@ impl Application {
 
             // Handle a completed download TODO
             Message::DownloadComplete(photo) => {
-                todo!("implement")
+                if let Some(album) = &self.active_album {
+                    if album.id == photo.album_id {
+                        // TODO add to cache
+                    }
+                }
+
+                Task::none()
             }
 
             // Process an incoming tcp packet

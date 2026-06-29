@@ -73,7 +73,7 @@ async fn load_thumbnail_by_id(album: Album) -> Res<(Album, ReflectionImage)> {
 
 /// Get all the albums belonging to the given user from onedrive, do not touch database
 async fn get_albums_belonging_to_user(user_id: String) -> Res<Vec<Album>> {
-    let user = SQL::select_user_by_id(&user_id).await?;
+    let user = SQL::select_user_by_id(user_id).await?;
     let mut user = user.ok_or(Error::NoSuchUserInDatabase)?;
     let access_token = Authentication::get_access_token(&mut user).await?;
     Ok(
@@ -212,9 +212,12 @@ pub fn process_packet(
             Task::perform(
                 SQL::insert_or_update_album(album.clone()),
                 |res| match res {
-                    Ok(_) => Message::Send(
-                        DisplayToControl::AlbumInformation(album)
-                    ),
+                    Ok(_) => Message::Batch(vec![
+                        Message::Send(
+                            DisplayToControl::AlbumInformation(album)
+                        ),
+                        Message::SynchronisePhotos
+                    ]),
                     Err(e) => Message::Error(e)
                 }
             )
