@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
+use iced::widget::image::Handle;
 use iced::{
     Element,
     Task
@@ -62,7 +63,9 @@ pub enum Message {
     // The active album has been changed
     AlbumChange(Option<Album>),
     AlbumChangeByID(String, String),
-
+    ReloadPhotosInActive(Vec<Photo>),
+    LoadNextImage,
+    
     // Request a synchronisation of photos / files
     SynchronisePhotos,
     SynchroniseFiles,
@@ -78,7 +81,9 @@ pub struct Application {
 
     // Manage display
     photos_in_album: Vec<Photo>,
-    current_photo_idx: usize,
+    current_photo_idx: Option<usize>,
+    current_handle: Option<Handle>,
+    next_handle: Option<Handle>
 }
 
 impl Application {
@@ -88,7 +93,11 @@ impl Application {
         Self {
             node: None,
             active_album: None,
-            download_permit: Arc::new(Semaphore::new(10))
+            download_permit: Arc::new(Semaphore::new(10)),
+            photos_in_album: Vec::new(),
+            current_photo_idx: None,
+            current_handle: None,
+            next_handle: None
         }
     }
     
@@ -234,8 +243,34 @@ impl Application {
             // The album has been changed, reload display
             Message::AlbumChange(album) => {
                 self.active_album = album;
-                todo!("Implement display")
+
+                match self.active_album.as_ref() {
+                    Some(album) => Task::perform(
+                        SQL::select_photos_by_album(album.id.clone(), album.user_id.clone()),
+                        |res| match res {
+                            Ok(photos) => Message::ReloadPhotosInActive(photos),
+                            Err(e) => Message::Error(e)
+                        }
+                    ),
+                    None => {
+                        Task::done(Message::ReloadPhotosInActive(Vec::new()))
+                    }
+                }
             },
+
+            // A new set of photos is to be loaded for the active album
+            Message::ReloadPhotosInActive(photos) => {
+                self.photos_in_album = photos;
+                self.current_photo_idx = if self.photos_in_album.len() == 0 { None } else { Some(0) };
+                Task::done(Message::LoadNextImage)
+            },
+
+            // Load the current and next photo handle
+            Message::LoadNextImage => {
+                // TODO - set the current to the next (if loaded) else load both.
+                // always reload the next one
+                Task::none()
+            }
 
             // Set album by ID
             Message::AlbumChangeByID(album_id, user_id) => {
