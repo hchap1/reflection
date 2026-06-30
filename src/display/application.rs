@@ -230,6 +230,7 @@ impl Application {
 
             // Process an outgoing tcp packet
             Message::Send(display_to_control) => {
+                println!("ORDERED TO SEND {display_to_control:?}");
                 match self.node.as_ref() {
                     Some(node_ref) => match to_bytes::<rkyv::rancor::Error>(&display_to_control) {
                         Ok(aligned_vec) => {

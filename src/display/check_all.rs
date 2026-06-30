@@ -13,6 +13,7 @@ use crate::error::{Error, Res};
 /// Synchronise images for all photos
 /// Download if missing
 pub async fn synchronise_files(semaphore: Arc<Semaphore>) -> Res<Vec<(String, Res<()>)>> {
+    println!("Synchronising files");
     
     // First, collect all photos in the database
     let photos = SQL::select_all_photos()
@@ -111,6 +112,7 @@ pub async fn synchronise_files(semaphore: Arc<Semaphore>) -> Res<Vec<(String, Re
 /// Pulls down every photo for every album and compares
 /// Does not download image data, just metadata
 pub async fn synchronise_photos() -> Res<Vec<(String, Res<()>)>> {
+    println!("Synchronising photos");
     
     // First, retrieve the list of all albums in the database
     let albums = SQL::select_all_albums()
@@ -166,7 +168,7 @@ pub async fn synchronise_photos() -> Res<Vec<(String, Res<()>)>> {
                             }
                         ).await {
                             Ok(_) => (),
-                            Err(e) => issues.push((String::from("PHOTO_DB_FAILED"), Err(e.into())))
+                            Err(e) => issues.push((String::from("PHOTO_DB_FAILED"), Err(e)))
                         }
                     }
                 },

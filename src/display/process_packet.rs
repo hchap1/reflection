@@ -39,7 +39,7 @@ async fn authenticate(temporary_token: String, pkce_verifier: String) -> Res<Use
     Ok(user)
 }
 
-fn own_album(album: &ArchivedAlbum) -> Album {
+pub fn own_album(album: &ArchivedAlbum) -> Album {
     Album {
         id: album.id.to_string(),
         user_id: album.user_id.to_string(),
@@ -62,7 +62,7 @@ async fn load_thumbnail_by_id(album: Album) -> Res<(Album, ReflectionImage)> {
         .ok_or(Error::NoThumbnail)?;
 
     let photo = SQL::select_photo_by_id(
-        &photo_id,
+        photo_id,
         &album.id,
         &album.user_id
     ).await?;

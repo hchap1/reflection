@@ -2,7 +2,7 @@
 
 use bytes::Bytes;
 use lan_tcp::networking::node::Node;
-use reflection::{backend::networking::network_message::{ArchivedDisplayToControl, ControlToDisplay, DisplayToControl, ObfuscatedUser}, IDENTIFIER, PORT};
+use reflection::{backend::networking::network_message::{ArchivedDisplayToControl, ControlToDisplay, DisplayToControl, ObfuscatedUser}, display::process_packet::own_album, IDENTIFIER, PORT};
 use rkyv::{option::ArchivedOption, rancor, Archived};
 
 #[tokio::main]
@@ -54,6 +54,8 @@ async fn main() -> reflection::error::Res<()> {
         lan_tcp::networking::node::Destination::Server
     ).await?;
 
+    let incoming_packet = receiver.recv().await.unwrap();
+
     let display_to_control: &Archived<DisplayToControl> = rkyv::access::<
         Archived<DisplayToControl>,
         rkyv::rancor::Error
@@ -61,6 +63,27 @@ async fn main() -> reflection::error::Res<()> {
 
     println!("RECEIVED PACKET: {display_to_control:?}");
 
+    let album = if let ArchivedDisplayToControl::ReturnAlbumsBelongingToUser(album) = display_to_control {
+        album
+    } else { panic!("Didn't receive an album packet!") };
+
+    let album = own_album(album);
+
+    connection.send(
+        Bytes::from_owner(rkyv::to_bytes::<rancor::Error>(
+            &ControlToDisplay::AddAlbum(album)
+        )?),
+        lan_tcp::networking::node::Destination::Server
+    ).await?;
+
+    let incoming_packet = receiver.recv().await.unwrap();
+
+    let display_to_control: &Archived<DisplayToControl> = rkyv::access::<
+        Archived<DisplayToControl>,
+        rkyv::rancor::Error
+    >(&incoming_packet.data)?;
+
+    println!("RECEIVED PACKET: {display_to_control:?}");
 
     Ok(())
 }
