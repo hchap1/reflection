@@ -9,6 +9,7 @@ use crate::backend::directories::image::ReflectionImage;
 
 /// User, without a token
 #[derive(Clone, Debug, Archive, Serialize, Deserialize)]
+#[rkyv(derive(Debug))]
 pub struct ObfuscatedUser {
     pub id: String,
     pub name: Option<String>,
@@ -31,6 +32,7 @@ impl From<User> for ObfuscatedUser {
 
 // Communication channel between display / control application
 #[derive(Clone, Debug, Archive, Serialize, Deserialize)]
+#[rkyv(derive(Debug))]
 pub enum ControlToDisplay {
     
     // Request state
@@ -77,6 +79,7 @@ pub enum ControlToDisplay {
 }
 
 #[derive(Clone, Debug, Archive, Serialize, Deserialize)]
+#[rkyv(derive(Debug))]
 pub enum DisplayToControl {
     
     // Responses to 'RequestState'
