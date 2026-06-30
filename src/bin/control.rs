@@ -2,7 +2,6 @@
 
 use bytes::Bytes;
 use lan_tcp::networking::node::Node;
-use onedrive_albums::authentication::oauth2;
 use reflection::{backend::networking::network_message::{ControlToDisplay, DisplayToControl}, IDENTIFIER, PORT};
 use rkyv::{rancor, Archived};
 
@@ -10,20 +9,6 @@ use rkyv::{rancor, Archived};
 async fn main() -> reflection::error::Res<()> {
     let mut connection = Node::spawn_client(IDENTIFIER, PORT)
         .await?;
-
-    let (raw_auth_code, pkce_verifier) = oauth2::wrapper::acquire_auth_code()
-        .await?;
-
-    println!("Grabbed code: {raw_auth_code}, {pkce_verifier}");
-
-    connection.send(
-        Bytes::from_owner(rkyv::to_bytes::<rancor::Error>(
-            &ControlToDisplay::Authenticated(raw_auth_code, pkce_verifier)
-        )?),
-        lan_tcp::networking::node::Destination::Server
-    ).await?;
-
-    println!("Send codes.");
 
     connection.send(
         Bytes::from_owner(rkyv::to_bytes::<rancor::Error>(
