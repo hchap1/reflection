@@ -84,6 +84,9 @@ pub enum Error {
 
     #[error("Download task failure")]
     DownloadError(String),
+
+    #[error("The entire active album contains 0 images with an associated file")]
+    NoValidImageInAlbum,
 }
 
 impl From<sqlx::Error> for Error {

@@ -65,6 +65,7 @@ pub enum Message {
     AlbumChangeByID(String, String),
     ReloadPhotosInActive(Vec<Photo>),
     LoadNextImage,
+    ImageDataLoaded(usize, Handle, usize, Handle),
     
     // Request a synchronisation of photos / files
     SynchronisePhotos,
@@ -80,9 +81,10 @@ pub struct Application {
     download_permit: Arc<Semaphore>,
 
     // Manage display
-    photos_in_album: Vec<Photo>,
+    photos_in_album: Arc<Vec<Photo>>,
     current_photo_idx: Option<usize>,
     current_handle: Option<Handle>,
+    next_photo_idx: Option<usize>,
     next_handle: Option<Handle>
 }
 
@@ -94,9 +96,10 @@ impl Application {
             node: None,
             active_album: None,
             download_permit: Arc::new(Semaphore::new(10)),
-            photos_in_album: Vec::new(),
+            photos_in_album: Arc::new(Vec::new()),
             current_photo_idx: None,
             current_handle: None,
+            next_photo_idx: None,
             next_handle: None
         }
     }
@@ -260,15 +263,120 @@ impl Application {
 
             // A new set of photos is to be loaded for the active album
             Message::ReloadPhotosInActive(photos) => {
-                self.photos_in_album = photos;
+                self.photos_in_album = Arc::new(photos);
                 self.current_photo_idx = if self.photos_in_album.len() == 0 { None } else { Some(0) };
+                self.current_handle = None;
+                self.next_photo_idx = if self.photos_in_album.len() == 0 { None } else { Some(0) };
+                self.next_handle = None;
                 Task::done(Message::LoadNextImage)
             },
 
             // Load the current and next photo handle
             Message::LoadNextImage => {
-                // TODO - set the current to the next (if loaded) else load both.
-                // always reload the next one
+                let idx = if let Some(idx) = self.next_photo_idx {
+                    idx
+                } else {
+                    return Task::none()
+                };
+
+                self.current_photo_idx = Some(idx);
+
+                // Clone ARC for future
+                let current_photos_vec = self.photos_in_album.clone();
+
+                let next = self.next_handle.take();
+
+                Task::perform(
+                    async move {
+
+                        let original_idx = idx;
+                        let mut idx = idx;
+                        let mut messages = Vec::new();
+
+                        let current = match next {
+                            Some(next) => Some((next, idx)),
+                            None => loop {
+
+                                // Retrieve the current photo
+                                let current_photo = match current_photos_vec.get(idx) {
+                                    Some(current_photo) => current_photo,
+                                    None => { idx = 0; continue }
+                                };
+
+                                // See if the image for the current photo can be loaded
+                                match ReflectionImage::load(current_photo.clone()).await {
+                                    Ok(image) => break Some((image.into_iced(), idx)),
+                                    Err(e) => messages.push(Message::Error(e))
+                                }
+
+                                idx += 1;
+
+                                // If we have checked every idx
+                                if idx == original_idx {
+                                    break None
+                                }
+                            }
+                        };
+
+                        let (current_handle, current_idx) = match current {
+                            Some(current) => current,
+                            None => {
+                                messages.push(Message::Error(Error::NoValidImageInAlbum));
+                                return messages;
+                            }
+                        };
+
+                        // Find the next valid image to cache
+                        idx = current_idx + 1;
+                        let maybe_next = loop {
+
+                            // Retrieve the current photo
+                            let current_photo = match current_photos_vec.get(idx) {
+                                Some(current_photo) => current_photo,
+                                None => { idx = 0; continue }
+                            };
+
+                            // See if the image for the current photo can be loaded
+                            match ReflectionImage::load(current_photo.clone()).await {
+                                Ok(image) => break Some((image.into_iced(), idx)),
+                                Err(e) => messages.push(Message::Error(e))
+                            }
+
+                            idx += 1;
+
+                            // If we have checked every idx
+                            if idx == original_idx {
+                                break None
+                            }
+                        };
+
+                        let (next_handle, next_idx) = match maybe_next {
+                            Some(next) => next,
+                            None => {
+                                messages.push(Message::Error(Error::NoValidImageInAlbum));
+                                return messages;
+                            }
+                        };
+
+                        messages.push(Message::ImageDataLoaded(
+                            current_idx,
+                            current_handle,
+                            next_idx,
+                            next_handle
+                        ));
+
+                        messages
+                    },
+                    |messages| Message::Batch(messages)
+                )
+            },
+            
+            // An image has been loaded
+            Message::ImageDataLoaded(current_idx, current_handle, next_idx, next_handle) => {
+                self.current_photo_idx = Some(current_idx);
+                self.current_handle = Some(current_handle);
+                self.next_photo_idx = Some(next_idx);
+                self.next_handle = Some(next_handle);
                 Task::none()
             }
 
