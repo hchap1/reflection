@@ -2469,9 +2469,9 @@ dependencies = [
 
 [[package]]
 name = "lan_tcp"
-version = "0.1.3"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8dadf58f754f6436a71eda0d70e9d39fffa56cef7716ba2cbd15f19e0a0a8f92"
+checksum = "7546a9734bb58902a1e1436e9738542d262ba1601f05ecf3a3590155d1e7e125"
 dependencies = [
  "bytes",
  "rkyv",
@@ -3303,9 +3303,9 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "onedrive-albums"
-version = "0.1.3"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a32c11fc7e45205d59a6692ed1e4c5dbfe9d8815054ca3ff9bc25ff06785001"
+checksum = "0311c4dd1ec4bf29cbc2133b39040a56eab57d7a81dc3dc2f40e22de75d2e025"
 dependencies = [
  "async-channel",
  "base64",

@@ -60,6 +60,7 @@ impl Storage {
                 .map_err(|_| Error::FailedToCreateDirectory(temporary.clone()))?;
         }
 
+        println!("Using: {root:?}");
         STORAGE.get_or_init(|| Storage { root, database, photos, temporary });
         Ok(())
     }

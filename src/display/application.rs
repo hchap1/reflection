@@ -40,6 +40,7 @@ pub enum Message {
 
     // Initialise database and networking
     Initialise,
+    DatabaseReady,
     NodeCreated(Arc<Node>),
 
     // Incoming TCP packet (recv packet)
@@ -88,8 +89,13 @@ pub struct Application {
     next_handle: Option<Handle>
 }
 
-impl Application {
+impl Default for Application {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
+impl Application {
     /// Build a new Application initial state
     pub fn new() -> Self {
         Self {
@@ -115,19 +121,24 @@ impl Application {
                 Task::batch(vec![
                     Task::future(Database::initialise())
                     .map(|res| match res {
-                        Ok(()) => Message::None,
+                        Ok(()) => Message::DatabaseReady,
                         Err(e) => Message::Error(e)
-                    }).chain(
-                        Task::future(Authentication::create_initial())
-                        .map(|res| match res {
-                            Ok(()) => Message::None,
-                            Err(e) => Message::Error(e)
-                        })
-                    ),
+                    }),
                     Task::future(Node::spawn_server(IDENTIFIER, PORT, 100))
                     .map(|res| match res {
                         Ok(node) => Message::NodeCreated(Arc::new(node)),
                         Err(e) => Message::Error(e.into())
+                    }),
+                ])
+            },
+
+            // Database is ready — start all DB-dependent tasks
+            Message::DatabaseReady => {
+                Task::batch(vec![
+                    Task::future(Authentication::create_initial())
+                    .map(|res| match res {
+                        Ok(()) => Message::None,
+                        Err(e) => Message::Error(e)
                     }),
                     // Check to see if database has a stored active album to resume
                     // This is a length prefixed setting format abcd:DATA where the first abcd
@@ -163,7 +174,7 @@ impl Application {
                         Err(e) => Message::Error(e)
                     }),
                     Task::done(Message::SynchronisePhotos),
-                    Task::done(Message::SynchroniseFiles)
+                    Task::done(Message::SynchroniseFiles),
                 ])
             },
 
@@ -176,7 +187,7 @@ impl Application {
                             .map(|(string, res)| Message::Error(
                                 Error::DownloadError(format!("{res:?} : {string}"))
                             ))
-                            .chain(vec![Message::SynchroniseFiles].into_iter())
+                            .chain(vec![Message::SynchroniseFiles])
                             .collect()
                     ),
                     Err(e) => Message::Error(e)
@@ -199,18 +210,21 @@ impl Application {
             // Take the receiver from the node and keep it in a stream
             Message::NodeCreated(mut node) => {
 
+                println!("Received creation of node.");
+
                 // Try and mutate the node to retrieve the receiver
                 // This fails if something else has a weak reference
                 let task = if let Some(node) = Arc::get_mut(&mut node) {
                     match node.take_receiver() {
                         Some(receiver) => Task::stream(ReceiverStream::new(receiver))
-                            .map(|recv_packet| Message::RecvPacket(recv_packet)),
+                            .map(Message::RecvPacket),
                         None => Task::done(Message::Error(Error::TcpReceiverMissing))
                     }
                 } else {
                     Task::done(Message::Error(Error::CouldNotMutateNodeArc))
                 };
                 self.node = Some(node);
+                println!("Set node, spawning stream task.");
                 task
             }
 

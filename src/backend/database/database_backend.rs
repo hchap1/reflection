@@ -26,8 +26,11 @@ impl Database {
             .foreign_keys(true)
             .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
 
+        println!("Options created");
         let pool = SqlitePool::connect_with(options)
             .await?;
+
+        println!("Connected");
 
         DATABASE.get_or_init(
             async || Database {
@@ -35,12 +38,25 @@ impl Database {
             }
         ).await;
 
+        Self::create_tables().await?;
+
+        println!("Tables created");
+
         Ok(())
     }
 
     /// Unwrap the singleton
     pub fn get_database_pool<'a>() -> Res<&'a SqlitePool> {
-        Ok(&DATABASE.get().ok_or(Error::FailedToAccessDatabase)?.pool)
+        println!("Trying to get database pool...");
+        let res = &DATABASE.get().ok_or(Error::FailedToAccessDatabase);
+
+        match res {
+            Ok(database) => Ok(&database.pool),
+            Err(e) => {
+                println!("... Failed to get database pool");
+                Err(e.clone())
+            }
+        }
     }
 
     /// Create tables (if they don't exist)

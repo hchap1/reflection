@@ -131,11 +131,14 @@ pub fn process_packet(
     recv_packet: RecvPacket
 ) -> Res<Task<Message>> {
 
+    println!("PROCESS PACKET CALLED!");
     // It is expected that recv_packet contains a ControlToDisplay
     let control_to_display: &Archived<ControlToDisplay> = access::<
         Archived<ControlToDisplay>,
         rkyv::rancor::Error
     >(&recv_packet.data)?;
+
+    println!("PACKET: {control_to_display:?}");
 
     // Process the command
     let task = match control_to_display {

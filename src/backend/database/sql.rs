@@ -7,6 +7,7 @@ use crate::backend::database::database_backend::Database;
 use crate::error::Error;
 
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize, Archive)]
+#[rkyv(derive(Debug))]
 pub struct User {
     pub id: String,
     pub name: Option<String>,
@@ -16,6 +17,7 @@ pub struct User {
 }
 
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize, Archive)]
+#[rkyv(derive(Debug))]
 pub struct Album {
     pub id: String,
     pub user_id: String,
@@ -25,6 +27,7 @@ pub struct Album {
 }
 
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize, Archive)]
+#[rkyv(derive(Debug))]
 pub struct Photo {
     pub id: String,
     pub album_id: String,

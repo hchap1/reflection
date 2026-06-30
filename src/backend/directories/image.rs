@@ -25,6 +25,7 @@ pub const THUMBNAIL_SIZE: u32 = 128;
 
 /// Packed RGBA8 format Image compatible with ICED and RKYV
 #[derive(Clone, Debug, Archive, Serialize, Deserialize)]
+#[rkyv(derive(Debug))]
 pub struct ReflectionImage {
     pub width: u32,
     pub height: u32,
