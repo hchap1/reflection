@@ -500,6 +500,9 @@ impl Application {
 
     /// View logic of the application
     pub fn view(&self) -> Element<'_, Message> {
-        iced::widget::text("Hello, world!").into()
+        match &self.current_handle {
+            Some(handle) => iced::widget::image(handle).into(),
+            None => iced::widget::text("No selected handle...").into()
+        }
     }
 }
