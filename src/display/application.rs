@@ -178,8 +178,7 @@ impl Application {
                         }
                         Err(e) => Message::Error(e)
                     }),
-                    Task::done(Message::SynchronisePhotos),
-                    Task::done(Message::SynchroniseFiles),
+                    Task::done(Message::SynchronisePhotos)
                 ])
             },
 
