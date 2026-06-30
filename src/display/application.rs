@@ -41,6 +41,7 @@ pub enum Message {
     // Initialise database and networking
     Initialise,
     DatabaseReady,
+    AuthenticationReady,
     NodeCreated(Arc<Node>),
 
     // Incoming TCP packet (recv packet)
@@ -132,14 +133,18 @@ impl Application {
                 ])
             },
 
-            // Database is ready — start all DB-dependent tasks
+            // Database is ready — run authentication before anything else
             Message::DatabaseReady => {
+                Task::future(Authentication::create_initial())
+                .map(|res| match res {
+                    Ok(()) => Message::AuthenticationReady,
+                    Err(e) => Message::Error(e)
+                })
+            },
+
+            // Authentication is ready — start remaining DB-dependent tasks
+            Message::AuthenticationReady => {
                 Task::batch(vec![
-                    Task::future(Authentication::create_initial())
-                    .map(|res| match res {
-                        Ok(()) => Message::None,
-                        Err(e) => Message::Error(e)
-                    }),
                     // Check to see if database has a stored active album to resume
                     // This is a length prefixed setting format abcd:DATA where the first abcd
                     // characters belong to the album_id, and the rest are user_id
