@@ -1,89 +1,60 @@
 // CONTROL APPLICATION
 
 use bytes::Bytes;
-use lan_tcp::networking::node::Node;
-use reflection::{backend::networking::network_message::{ArchivedDisplayToControl, ControlToDisplay, DisplayToControl, ObfuscatedUser}, display::process_packet::own_album, IDENTIFIER, PORT};
-use rkyv::{option::ArchivedOption, rancor, Archived};
+use lan_tcp::networking::node::{Destination, Node, RecvPacket};
+use reflection::{
+    backend::networking::network_message::{ArchivedDisplayToControl, ControlToDisplay, DisplayToControl},
+    display::process_packet::own_album,
+    error::Res,
+    IDENTIFIER, PORT,
+};
+use rkyv::{rancor, Archived};
+use tokio::sync::mpsc::Receiver;
+
+async fn send(connection: &Node, msg: &ControlToDisplay) -> Res<()> {
+    connection.send(
+        Bytes::from_owner(rkyv::to_bytes::<rancor::Error>(msg)?),
+        Destination::Server,
+    ).await?;
+    Ok(())
+}
+
+async fn recv(receiver: &mut Receiver<RecvPacket>) -> Bytes {
+    receiver.recv().await.unwrap().data
+}
+
+fn decode(data: &[u8]) -> Res<&Archived<DisplayToControl>> {
+    Ok(rkyv::access::<Archived<DisplayToControl>, rkyv::rancor::Error>(data)?)
+}
 
 #[tokio::main]
-async fn main() -> reflection::error::Res<()> {
-    let mut connection = Node::spawn_client(IDENTIFIER, PORT)
-        .await?;
-
-    connection.send(
-        Bytes::from_owner(rkyv::to_bytes::<rancor::Error>(
-            &ControlToDisplay::RequestUsers
-        )?),
-        lan_tcp::networking::node::Destination::Server
-    ).await?;
-    
-    println!("Send request for users.");
-
+async fn main() -> Res<()> {
+    let mut connection = Node::spawn_client(IDENTIFIER, PORT).await?;
     let mut receiver = connection.take_receiver().unwrap();
-    let incoming_packet = receiver.recv().await.unwrap();
 
-    println!("Got packet.");
+    // Request all albums currently in the database
+    send(&connection, &ControlToDisplay::RequestAlbums).await?;
+    println!("Sent RequestAlbums.");
 
-    let display_to_control: &Archived<DisplayToControl> = rkyv::access::<
-        Archived<DisplayToControl>,
-        rkyv::rancor::Error
-    >(&incoming_packet.data)?;
+    let bytes = recv(&mut receiver).await;
+    let packet = decode(&bytes)?;
+    println!("Received: {packet:?}");
 
-    println!("RECEIVED PACKET: {display_to_control:?}");
+    let album = if let ArchivedDisplayToControl::AlbumInformation(album) = packet {
+        own_album(album)
+    } else {
+        panic!("Expected AlbumInformation, got: {packet:?}");
+    };
 
-    let first_user = if let ArchivedDisplayToControl::UserInformation(user) = display_to_control {
-        user
-    } else { panic!("Didn't receive a user packet!") };
+    println!("First album in database: {:?}", album.name);
 
+    // Set it as the active album
+    send(&connection, &ControlToDisplay::SetActiveAlbum(Some(album))).await?;
+    println!("Sent SetActiveAlbum.");
 
-    connection.send(
-        Bytes::from_owner(rkyv::to_bytes::<rancor::Error>(
-            &ControlToDisplay::RequestAlbumsBelongingToUser(ObfuscatedUser {
-                id: first_user.id.to_string(),
-                name: match &first_user.name {
-                    ArchivedOption::Some(name) => Some(name.to_string()),
-                    ArchivedOption::None => None
-                },
-                email: match &first_user.email {
-                    ArchivedOption::Some(email) => Some(email.to_string()),
-                    ArchivedOption::None => None
-                },
-                expiry_date_time: first_user.expiry_date_time.into()
-            })
-        )?),
-        lan_tcp::networking::node::Destination::Server
-    ).await?;
-
-    let incoming_packet = receiver.recv().await.unwrap();
-
-    let display_to_control: &Archived<DisplayToControl> = rkyv::access::<
-        Archived<DisplayToControl>,
-        rkyv::rancor::Error
-    >(&incoming_packet.data)?;
-
-    println!("RECEIVED PACKET: {display_to_control:?}");
-
-    let album = if let ArchivedDisplayToControl::ReturnAlbumsBelongingToUser(album) = display_to_control {
-        album
-    } else { panic!("Didn't receive an album packet!") };
-
-    let album = own_album(album);
-
-    connection.send(
-        Bytes::from_owner(rkyv::to_bytes::<rancor::Error>(
-            &ControlToDisplay::AddAlbum(album)
-        )?),
-        lan_tcp::networking::node::Destination::Server
-    ).await?;
-
-    let incoming_packet = receiver.recv().await.unwrap();
-
-    let display_to_control: &Archived<DisplayToControl> = rkyv::access::<
-        Archived<DisplayToControl>,
-        rkyv::rancor::Error
-    >(&incoming_packet.data)?;
-
-    println!("RECEIVED PACKET: {display_to_control:?}");
+    let bytes = recv(&mut receiver).await;
+    let packet = decode(&bytes)?;
+    println!("Confirmed active album: {packet:?}");
 
     Ok(())
 }

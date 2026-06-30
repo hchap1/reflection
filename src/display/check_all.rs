@@ -19,6 +19,8 @@ pub async fn synchronise_files(semaphore: Arc<Semaphore>) -> Res<Vec<(String, Re
     let photos = SQL::select_all_photos()
         .await?;
 
+    println!("Found photos: {photos:?}");
+
     let mut issues = Vec::new();
 
     // Second, check the download status of each
@@ -34,6 +36,8 @@ pub async fn synchronise_files(semaphore: Arc<Semaphore>) -> Res<Vec<(String, Re
 
             let exists = tokio::fs::try_exists(photo_path).await?
                 && tokio::fs::try_exists(thumbnail_path).await?;
+
+            println!("PHOTO {} EXISTS {exists}", photo.name);
 
             if !exists {
                 to_be_downloaded.push(photo.clone());
