@@ -116,5 +116,5 @@ pub enum DisplayToControl {
     ActivePhoto(Photo, ReflectionImage),
 
     // Return the albums owned by a user
-    ReturnAlbumsBelongingToUser(Album),
+    ReturnAlbumsBelongingToUser(Album, bool),
 }

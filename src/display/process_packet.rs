@@ -195,20 +195,33 @@ pub fn process_packet(
             }
         ),
 
-        ArchivedControlToDisplay::RequestAlbumsBelongingToUser(obfuscated_user) => Task::perform(
-            get_albums_belonging_to_user(obfuscated_user.id.to_string()),
-            |res| match res {
-                Ok(albums) => Message::Batch(
-                    albums
-                        .into_iter()
-                        .map(|album| Message::Send(
-                            DisplayToControl::ReturnAlbumsBelongingToUser(album)
-                        ))
-                        .collect()
-                ),
-                Err(e) => Message::Error(e)
-            }
-        ),
+        ArchivedControlToDisplay::RequestAlbumsBelongingToUser(obfuscated_user) => {
+            let id = obfuscated_user.id.to_string();
+            Task::perform(
+                async {
+                    let albums = get_albums_belonging_to_user(id.to_string()).await?;
+                    let exists = SQL::select_albums_by_user(id).await?;
+
+                    Ok::<Vec<(bool, Album)>, Error>(
+                        albums
+                            .into_iter()
+                            .map(|x| (exists.contains(&x), x))
+                            .collect()
+                    )
+                },
+                |res| match res {
+                    Ok(albums) => Message::Batch(
+                        albums
+                            .into_iter()
+                            .map(|(exists, album)| Message::Send(
+                                DisplayToControl::ReturnAlbumsBelongingToUser(album, exists)
+                            ))
+                            .collect()
+                    ),
+                    Err(e) => Message::Error(e)
+                }
+            )
+        },
 
         ArchivedControlToDisplay::AddAlbum(album) => {
             let album = own_album(album);

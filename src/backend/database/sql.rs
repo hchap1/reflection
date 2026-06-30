@@ -16,7 +16,7 @@ pub struct User {
     pub expiry_date_time: i64
 }
 
-#[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize, Archive)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize, Archive, PartialEq)]
 #[rkyv(derive(Debug))]
 pub struct Album {
     pub id: String,
@@ -152,7 +152,7 @@ impl SQL {
     }
 
     pub async fn select_albums_by_user(
-        user_id: &str,
+        user_id: String,
     ) -> Result<Vec<Album>, Error> {
         query_as::<_, Album>("SELECT * FROM ALBUM WHERE user_id = ?;")
             .bind(user_id)
