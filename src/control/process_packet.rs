@@ -4,6 +4,7 @@ use crate::backend::database::sql::ArchivedPhoto;
 use crate::backend::database::sql::Photo;
 use crate::backend::networking::network_message::ArchivedDisplayToControl;
 use crate::backend::networking::network_message::ArchivedObfuscatedUser;
+use crate::backend::networking::network_message::ControlToDisplay;
 use crate::backend::networking::network_message::ObfuscatedUser;
 use crate::display::process_packet::own_album;
 use crate::error::Res;
@@ -77,15 +78,17 @@ pub fn process_packet(application: &mut Application, recv_packet: RecvPacket) ->
             },
 
             ArchivedDisplayToControl::AlbumInformation(album) => {
-                application.albums.insert(album.id.to_string(), own_album(album));
-                Task::none()
+                application.albums.insert((album.user_id.to_string(), album.id.to_string()), own_album(album));
+                Task::done(
+                    Message::Send(ControlToDisplay::RequestAlbumCover(own_album(album)))
+                )
             },
 
             ArchivedDisplayToControl::SelectedAlbum(album) => {
                 match album {
                     ArchivedOption::Some(album) => {
-                        application.active_album = Some(album.id.to_string());
-                        application.albums.insert(album.id.to_string(), own_album(album));
+                        application.active_album = Some((album.user_id.to_string(), album.id.to_string()));
+                        application.albums.insert((album.user_id.to_string(), album.id.to_string()), own_album(album));
                     },
                     ArchivedOption::None => {
                         application.active_album = None;
@@ -97,7 +100,7 @@ pub fn process_packet(application: &mut Application, recv_packet: RecvPacket) ->
             ArchivedDisplayToControl::ReturnAlbumCover(album, cover) => {
                 let handle = Handle::from_rgba(cover.width.into(), cover.height.into(), cover.data.to_owned());
                 application.album_covers.insert((album.user_id.to_string(), album.id.to_string()), handle);
-                application.albums.insert(album.id.to_string(), own_album(album));
+                application.albums.insert((album.user_id.to_string(), album.id.to_string()), own_album(album));
                 Task::none()
             },
 

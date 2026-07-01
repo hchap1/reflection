@@ -1,5 +1,8 @@
 use bytes::Bytes;
-use iced::{Element, Task, widget::image::Handle};
+use iced::widget::image;
+use iced::{widget::{button, image::Handle, Column, Row, Scrollable}, Element, Task};
+use iced::widget::text;
+use onedrive_albums::authentication::oauth2;
 use rkyv::to_bytes;
 use std::{collections::HashMap, sync::Arc};
 use lan_tcp::networking::node::{Destination, Node, RecvPacket, SendPacket};
@@ -16,14 +19,16 @@ pub enum Message {
 
     // Networking
     Send(ControlToDisplay),
-    Recv(RecvPacket)
+    Recv(RecvPacket),
+
+    Authenticate,
 }
 
 pub struct Application {
     pub node: Option<Arc<Node>>,
     pub users: HashMap<String, ObfuscatedUser>,
-    pub active_album: Option<String>,
-    pub albums: HashMap<String, Album>,
+    pub active_album: Option<(String, String)>,
+    pub albums: HashMap<(String, String), Album>,
 
     // Associate an album id with an image/photos
     pub album_covers: HashMap<(String, String), Handle>,
@@ -66,10 +71,15 @@ impl Application {
                 ])
             },
 
-            // TODO send initial state requests
             Message::NodeCreated(node) => {
                 self.node = Some(node);
-                Task::none()
+                Task::done(
+                    Message::Batch(vec![
+                        Message::Send(ControlToDisplay::RequestUsers),
+                        Message::Send(ControlToDisplay::RequestAlbums),
+                        Message::Send(ControlToDisplay::RequestActive),
+                    ])
+                )
             },
 
             Message::Error(e) => {
@@ -117,11 +127,77 @@ impl Application {
                 }
             },
 
+            Message::Authenticate => {
+                Task::perform(
+                    oauth2::wrapper::acquire_auth_code(),
+                    |res| match res {
+                        Ok((a, b)) => Message::Send(ControlToDisplay::Authenticated(a, b)),
+                        Err(e) => Message::Error(e.into())
+                    }
+                )
+            },
+
             Message::None => Task::none()
         }
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        iced::widget::text("Hello, world!").into()
+        Row::new()
+            .push(
+                Column::new()
+                    .push(
+                        text("Users")
+                    ).push(
+                        Scrollable::new(
+                            Column::from_iter(
+                                self.users.values()
+                                    .map(|user| Row::new()
+                                        .push(user.name.as_ref().map(text))
+                                        .into()
+                                    )
+                            )
+                        )
+                    ).push(
+                        button("AUTHENTICATE NEW")
+                            .on_press(Message::Authenticate)
+                    )
+                )
+            .push(
+                Column::new()
+                    .push(
+                        text("Albums")
+                    ).push(
+                        Scrollable::new(
+                            Column::from_iter(
+                                self.albums.values()
+                                    .map(|album| Row::new()
+                                        .push(self.album_covers.get(
+                                                &(album.user_id.clone(), album.id.clone())).map(image)
+                                        ).push(text(&album.name))
+                                        .into()
+                                    )
+                            )
+                        )
+                    )
+                )
+            .push(
+                Column::new()
+                    .push(text("Active Album"))
+                    .push(
+                        self.active_album.as_ref()
+                            .map(|key|
+                                self.albums.get(key)
+                                    .map(|album|
+                                        Row::new()
+                                            .push(self.album_covers.get(key).map(image))
+                                            .push(text(&album.name))
+                                    )
+                            )
+                    ).push(text("Active Image"))
+                    .push(
+                        self.active_image.as_ref().map(image)
+                    )
+                )
+            .into()
     }
 }
