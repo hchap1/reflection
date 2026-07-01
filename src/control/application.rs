@@ -63,7 +63,7 @@ impl Application {
         match message {
             Message::Initialise => {
                 Task::batch(vec![
-                    Task::future(Node::spawn_server(IDENTIFIER, PORT, 100))
+                    Task::future(Node::spawn_client(IDENTIFIER, PORT))
                     .map(|res| match res {
                         Ok(node) => Message::NodeCreated(Arc::new(node)),
                         Err(e) => Message::Error(e.into())
