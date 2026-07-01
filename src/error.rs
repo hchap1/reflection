@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+
 use tokio::{sync::AcquireError, task::JoinError};
 
 pub type Res<T> = Result<T, Error>;
@@ -83,6 +84,9 @@ pub enum Error {
 
     #[error("The entire active album contains 0 images with an associated file")]
     NoValidImageInAlbum,
+
+    #[error("Failed to lock mutex")]
+    MutexLockFailed,
 }
 
 impl From<sqlx::Error> for Error {

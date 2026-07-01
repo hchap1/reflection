@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use bytes::Bytes;
 use iced::widget::image::Handle;
@@ -83,7 +84,7 @@ pub struct Application {
     download_permit: Arc<Semaphore>,
 
     // Manage display
-    photos_in_album: Arc<Vec<Photo>>,
+    photos_in_album: Arc<Mutex<Vec<Photo>>>,
     current_photo_idx: Option<usize>,
     current_handle: Option<Handle>,
     next_photo_idx: Option<usize>,
@@ -103,7 +104,7 @@ impl Application {
             node: None,
             active_album: None,
             download_permit: Arc::new(Semaphore::new(10)),
-            photos_in_album: Arc::new(Vec::new()),
+            photos_in_album: Arc::new(Mutex::new(Vec::new())),
             current_photo_idx: None,
             current_handle: None,
             next_photo_idx: None,
@@ -281,15 +282,28 @@ impl Application {
             },
 
             // A new set of photos is to be loaded for the active album
-            Message::ReloadPhotosInActive(photos) => {
-                self.photos_in_album = Arc::new(photos);
-                self.current_photo_idx = if self.photos_in_album.is_empty()
-                    { None } else { Some(0) };
-                self.current_handle = None;
-                self.next_photo_idx = if self.photos_in_album.is_empty()
-                    { None } else { Some(0) };
-                self.next_handle = None;
-                Task::done(Message::LoadNextImage)
+            Message::ReloadPhotosInActive(mut photos) => {
+                if let Ok(mut photos_in_album) = self.photos_in_album.lock() {
+                    let empty = photos.is_empty();
+
+                    self.current_handle = None;
+                    self.next_handle = None;
+
+                    if empty {
+                        self.current_photo_idx = None;
+                        self.next_photo_idx = None;
+                    } else {
+                        self.current_photo_idx = Some(0);
+                        self.next_photo_idx = Some(0);
+                    }
+
+                    photos_in_album.clear();
+                    photos_in_album.append(&mut photos);
+                    Task::done(Message::LoadNextImage)
+                } else {
+                    Task::done(Message::Error(Error::MutexLockFailed))
+                }
+
             },
 
             // Load the current and next photo handle
@@ -303,7 +317,10 @@ impl Application {
                 self.current_photo_idx = Some(idx);
 
                 // Clone ARC for future
-                let current_photos_vec = self.photos_in_album.clone();
+                let current_photos_vec = match self.photos_in_album.lock() {
+                    Ok(current_photos_vec) => current_photos_vec.clone(),
+                    _ => return Task::done(Message::Error(Error::MutexLockFailed))
+                };
 
                 let next = self.next_handle.take();
 
@@ -395,7 +412,13 @@ impl Application {
             // An image has been loaded
             Message::ImageDataLoaded(current_idx, current_image, next_idx, next_image) => {
 
-                let message = match self.photos_in_album.get(current_idx) {
+                let current_photos_vec = match self.photos_in_album.lock() {
+                    Ok(current_photos_vec) => current_photos_vec,
+                    _ => return Task::done(Message::Error(Error::MutexLockFailed))
+                };
+
+
+                let message = match current_photos_vec.get(current_idx) {
                     Some(photo) => Message::Send(
                         DisplayToControl::ActivePhoto(photo.clone(), current_image.clone())
                     ),
@@ -474,10 +497,8 @@ impl Application {
 
             // Handle a completed download TODO
             Message::DownloadComplete(photo) => {
-                if let Some(album) = &self.active_album {
-                    if album.id == photo.album_id {
-                        // TODO add to cache
-                    }
+                if let Some(album) = &self.active_album && album.id == photo.album_id{
+                    // TODO add to cache
                 }
 
                 Task::none()
@@ -493,7 +514,7 @@ impl Application {
             Message::Batch(messages) => {
                 Task::batch(messages
                     .into_iter()
-                    .map(|message| Task::done(message))
+                    .map(Task::done)
                 )
             }
 
