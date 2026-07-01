@@ -495,10 +495,13 @@ impl Application {
                 }
             }
 
-            // Handle a completed download TODO
+            // Handle a completed download
             Message::DownloadComplete(photo) => {
-                if let Some(album) = &self.active_album && album.id == photo.album_id{
-                    // TODO add to cache
+                if let Some(album) = &self.active_album
+                    && album.id == photo.album_id
+                    && let Ok(mut photos_vec) = self.photos_in_album.lock()
+                {
+                    photos_vec.push(photo)
                 }
 
                 Task::none()
