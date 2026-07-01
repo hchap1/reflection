@@ -265,13 +265,33 @@ pub fn process_packet(
         }
 
         ArchivedControlToDisplay::RequestActive => {
-            Task::done(
-                Message::Send(
-                    DisplayToControl::SelectedAlbum(
-                        application.active_album.clone()
+            Task::batch(vec![
+                Task::done(
+                    Message::Send(
+                        DisplayToControl::SelectedAlbum(
+                            application.active_album.clone()
+                        )
                     )
-                )
-            )
+                ),
+                {
+                    #[allow(clippy::collapsible_if)]
+                    if let Ok(photos) = application.photos_in_album.lock()
+                        && let Some(idx) = application.current_photo_idx {
+                        if let Some(photo) = photos.get(idx) {
+                            let photo = photo.clone();
+                            return Ok(Task::perform(
+                                ReflectionImage::load(photo.clone()),
+                                |res| match res {
+                                    Ok(res) => Message::Send(DisplayToControl::ActivePhoto(photo, res)),
+                                    Err(e) => Message::Error(e)
+                                }
+                            ));
+                        }
+                    };
+
+                    Task::none()
+                }
+            ])
         }
 
         // Set the currently active album, return through

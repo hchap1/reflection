@@ -84,8 +84,8 @@ pub struct Application {
     download_permit: Arc<Semaphore>,
 
     // Manage display
-    photos_in_album: Arc<Mutex<Vec<Photo>>>,
-    current_photo_idx: Option<usize>,
+    pub photos_in_album: Arc<Mutex<Vec<Photo>>>,
+    pub current_photo_idx: Option<usize>,
     current_handle: Option<Handle>,
     next_photo_idx: Option<usize>,
     next_handle: Option<ReflectionImage>
@@ -235,7 +235,6 @@ impl Application {
 
             // Process an outgoing tcp packet
             Message::Send(display_to_control) => {
-                println!("ORDERED TO SEND {display_to_control:?}");
                 match self.node.as_ref() {
                     Some(node_ref) => match to_bytes::<rkyv::rancor::Error>(&display_to_control) {
                         Ok(aligned_vec) => {
@@ -504,7 +503,11 @@ impl Application {
                     photos_vec.push(photo)
                 }
 
-                Task::none()
+                if self.current_handle.is_none() {
+                    Task::done(Message::LoadNextImage)
+                } else {
+                    Task::none()
+                }
             }
 
             // Process an incoming tcp packet
