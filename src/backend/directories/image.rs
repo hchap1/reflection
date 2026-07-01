@@ -35,17 +35,24 @@ pub struct ReflectionImage {
 impl ReflectionImage {
 
     async fn from_file(path: &Path) -> Res<Self> {
-        let raw_image = image::open(path)?;
-        let rgba = raw_image.to_rgba8();
-        let (width, height) = raw_image.dimensions();
+        // Decoding + RGBA conversion is CPU/IO bound and can easily take hundreds of
+        // milliseconds for a full resolution photo — run it off the async runtime's
+        // worker threads so it can't stall other tasks (e.g. the slideshow timer).
+        let path = path.to_owned();
 
-        Ok(
-            Self {
-                width,
-                height,
-                data: rgba.into_raw()
-            }
-        )
+        tokio::task::spawn_blocking(move || {
+            let raw_image = image::open(&path)?;
+            let rgba = raw_image.to_rgba8();
+            let (width, height) = raw_image.dimensions();
+
+            Ok::<Self, Error>(
+                Self {
+                    width,
+                    height,
+                    data: rgba.into_raw()
+                }
+            )
+        }).await?
     }
     
     pub async fn load(photo: Photo) -> Res<Self> {
@@ -147,5 +154,35 @@ impl ReflectionImage {
     /// Convert this image into an iced image handle
     pub fn into_iced(self) -> Handle {
         Handle::from_rgba(self.width, self.height, self.data)
+    }
+
+    /// Produce a small, heavily blurred handle of this image, suitable for use as a
+    /// full-screen background behind the sharp, centered foreground image.
+    ///
+    /// The image is downscaled before blurring so the (otherwise expensive) blur pass
+    /// runs over a handful of pixels rather than the full resolution photo.
+    pub fn blurred_background(&self) -> Handle {
+        const MAX_DIMENSION: u32 = 64;
+        const BLUR_SIGMA: f32 = 6.0;
+
+        let buffer = match ImageBuffer::<image::Rgba<u8>, _>::from_raw(
+            self.width, self.height, self.data.as_slice()
+        ) {
+            Some(buffer) => buffer,
+            None => return Handle::from_rgba(self.width, self.height, self.data.clone())
+        };
+
+        let longest_side = self.width.max(self.height).max(1);
+        let scale = MAX_DIMENSION as f32 / longest_side as f32;
+        let small_width = ((self.width as f32 * scale).round() as u32).max(1);
+        let small_height = ((self.height as f32 * scale).round() as u32).max(1);
+
+        let small = image::imageops::resize(
+            &buffer, small_width, small_height, image::imageops::FilterType::Triangle
+        );
+        let blurred = image::imageops::blur(&small, BLUR_SIGMA);
+
+        let (width, height) = blurred.dimensions();
+        Handle::from_rgba(width, height, blurred.into_raw())
     }
 }

@@ -1,10 +1,14 @@
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use bytes::Bytes;
 use iced::widget::image::Handle;
+use iced::widget::{container, image, stack};
 use iced::{
+    ContentFit,
     Element,
+    Length,
     Task
 };
 
@@ -13,7 +17,7 @@ use lan_tcp::networking::node::Node;
 use lan_tcp::networking::node::RecvPacket;
 use lan_tcp::networking::node::SendPacket;
 use tokio::sync::Semaphore;
-use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::wrappers::{IntervalStream, ReceiverStream};
 use rkyv::to_bytes;
 
 use crate::IDENTIFIER;
@@ -68,7 +72,8 @@ pub enum Message {
     AlbumChangeByID(String, String),
     ReloadPhotosInActive(Vec<Photo>),
     LoadNextImage,
-    ImageDataLoaded(usize, ReflectionImage, usize, ReflectionImage),
+    ImageDataLoaded(u64, usize, ReflectionImage, Handle, usize, ReflectionImage),
+    SwitchFailed(u64),
     
     // Request a synchronisation of photos / files
     SynchronisePhotos,
@@ -87,8 +92,15 @@ pub struct Application {
     pub photos_in_album: Arc<Mutex<Vec<Photo>>>,
     pub current_photo_idx: Option<usize>,
     current_handle: Option<Handle>,
+    background_handle: Option<Handle>,
     next_photo_idx: Option<usize>,
-    next_handle: Option<ReflectionImage>
+    next_handle: Option<ReflectionImage>,
+
+    // Guards against overlapping / stale image switches (e.g. a switch that's
+    // still decoding when the next tick fires, or one that belongs to an album
+    // that has since been replaced).
+    switch_in_flight: bool,
+    switch_generation: u64
 }
 
 impl Default for Application {
@@ -107,8 +119,11 @@ impl Application {
             photos_in_album: Arc::new(Mutex::new(Vec::new())),
             current_photo_idx: None,
             current_handle: None,
+            background_handle: None,
             next_photo_idx: None,
-            next_handle: None
+            next_handle: None,
+            switch_in_flight: false,
+            switch_generation: 0
         }
     }
     
@@ -131,6 +146,15 @@ impl Application {
                         Ok(node) => Message::NodeCreated(Arc::new(node)),
                         Err(e) => Message::Error(e.into())
                     }),
+                    // Cycle to the next image in the active album once a second.
+                    // `interval_at` (rather than `interval`) skips the immediate
+                    // first tick, so we don't double-advance right on startup.
+                    Task::stream(IntervalStream::new(
+                        tokio::time::interval_at(
+                            tokio::time::Instant::now() + Duration::from_secs(1),
+                            Duration::from_secs(1)
+                        )
+                    )).map(|_| Message::LoadNextImage),
                 ])
             },
 
@@ -236,27 +260,26 @@ impl Application {
             // Process an outgoing tcp packet
             Message::Send(display_to_control) => {
                 match self.node.as_ref() {
-                    Some(node_ref) => match to_bytes::<rkyv::rancor::Error>(&display_to_control) {
-                        Ok(aligned_vec) => {
-                            let sender = node_ref.clone_sender();
-                            Task::future(
-                                async move {
-                                    sender.send(
-                                        SendPacket {
-                                            data: Bytes::from_owner(aligned_vec),
-                                            destination: Destination::All
-                                        }
-                                    ).await
-                                }
-                            ).map(|res| match res {
-                                Ok(()) => Message::None,
-                                Err(_) => Message::Error(
-                                    lan_tcp::error::Error::MpscChannelFailed.into()
-                                )
-                            })
-                        },
+                    Some(node_ref) => {
+                        let sender = node_ref.clone_sender();
+                        Task::future(async move {
+                            // Serialising a full-resolution image is CPU bound and can
+                            // stall the UI thread if run inline in `update` — push it
+                            // onto a blocking-friendly thread instead.
+                            let aligned_vec = tokio::task::spawn_blocking(move || {
+                                to_bytes::<rkyv::rancor::Error>(&display_to_control)
+                            }).await.map_err(Error::from)?.map_err(Error::from)?;
 
-                        Err(e) => Task::done(Message::Error(e.into()))
+                            sender.send(
+                                SendPacket {
+                                    data: Bytes::from_owner(aligned_vec),
+                                    destination: Destination::All
+                                }
+                            ).await.map_err(|_| lan_tcp::error::Error::MpscChannelFailed.into())
+                        }).map(|res: Result<(), Error>| match res {
+                            Ok(()) => Message::None,
+                            Err(e) => Message::Error(e)
+                        })
                     },
                     None => Task::done(Message::Error(Error::MissingNode))
                 }
@@ -285,13 +308,23 @@ impl Application {
                 if let Ok(mut photos_in_album) = self.photos_in_album.lock() {
                     let empty = photos.is_empty();
 
-                    self.current_handle = None;
+                    // Bump the generation and drop the switch-in-flight guard so any
+                    // result from a previously started switch (which now refers to a
+                    // stale album/index) is ignored rather than clobbering state, and
+                    // so the LoadNextImage below is free to start immediately.
+                    self.switch_generation += 1;
+                    self.switch_in_flight = false;
                     self.next_handle = None;
 
                     if empty {
+                        // Nothing to show for this album — clear the display.
                         self.current_photo_idx = None;
                         self.next_photo_idx = None;
+                        self.current_handle = None;
+                        self.background_handle = None;
                     } else {
+                        // Keep showing the previous image (if any) until the new
+                        // album's first image has actually loaded.
                         self.current_photo_idx = Some(0);
                         self.next_photo_idx = Some(0);
                     }
@@ -307,6 +340,14 @@ impl Application {
 
             // Load the current and next photo handle
             Message::LoadNextImage => {
+                // A switch is already decoding/blurring — let it finish rather than
+                // starting an overlapping one (this is what caused the flicker: a
+                // slow switch was still in flight when the next tick fired, and the
+                // two completions could arrive out of order).
+                if self.switch_in_flight {
+                    return Task::none();
+                }
+
                 let idx = if let Some(idx) = self.next_photo_idx {
                     idx
                 } else {
@@ -322,6 +363,8 @@ impl Application {
                 };
 
                 let next = self.next_handle.take();
+                let generation = self.switch_generation;
+                self.switch_in_flight = true;
 
                 Task::perform(
                     async move {
@@ -358,6 +401,7 @@ impl Application {
                         let (current_handle, current_idx) = match current {
                             Some(current) => current,
                             None => {
+                                messages.push(Message::SwitchFailed(generation));
                                 messages.push(Message::Error(Error::NoValidImageInAlbum));
                                 return messages;
                             }
@@ -390,14 +434,26 @@ impl Application {
                         let (next_handle, next_idx) = match maybe_next {
                             Some(next) => next,
                             None => {
+                                messages.push(Message::SwitchFailed(generation));
                                 messages.push(Message::Error(Error::NoValidImageInAlbum));
                                 return messages;
                             }
                         };
 
+                        // Blurring is CPU bound, so run it on a blocking-friendly thread
+                        let background_image = current_handle.clone();
+                        let background_handle = match tokio::task::spawn_blocking(
+                            move || background_image.blurred_background()
+                        ).await {
+                            Ok(handle) => handle,
+                            Err(_) => current_handle.clone().into_iced()
+                        };
+
                         messages.push(Message::ImageDataLoaded(
+                            generation,
                             current_idx,
                             current_handle,
+                            background_handle,
                             next_idx,
                             next_handle
                         ));
@@ -407,9 +463,26 @@ impl Application {
                     Message::Batch
                 )
             },
-            
+
+            // A switch (current + next lookahead) failed to find any valid image.
+            // Release the in-flight guard so the next tick can try again — but only
+            // if this failure still belongs to the current album; a stale failure
+            // from a since-replaced album should not affect the new one's guard.
+            Message::SwitchFailed(generation) => {
+                if generation == self.switch_generation {
+                    self.switch_in_flight = false;
+                }
+                Task::none()
+            }
+
             // An image has been loaded
-            Message::ImageDataLoaded(current_idx, current_image, next_idx, next_image) => {
+            Message::ImageDataLoaded(generation, current_idx, current_image, background_handle, next_idx, next_image) => {
+
+                // The active album changed while this switch was in flight — its
+                // index/handles no longer refer to anything meaningful, discard it.
+                if generation != self.switch_generation {
+                    return Task::none();
+                }
 
                 let current_photos_vec = match self.photos_in_album.lock() {
                     Ok(current_photos_vec) => current_photos_vec,
@@ -425,10 +498,12 @@ impl Application {
                 };
 
                 let current_handle = current_image.into_iced();
+                self.background_handle = Some(background_handle);
                 self.current_photo_idx = Some(current_idx);
                 self.current_handle = Some(current_handle);
                 self.next_photo_idx = Some(next_idx);
                 self.next_handle = Some(next_image);
+                self.switch_in_flight = false;
                 Task::done(message)
             }
 
@@ -537,10 +612,31 @@ impl Application {
     }
 
     /// View logic of the application
+    ///
+    /// Renders the current photo centered over a full-screen, blurred copy of itself
+    /// so there is never a hard edge / letterboxed gap around images that don't match
+    /// the screen's aspect ratio.
     pub fn view(&self) -> Element<'_, Message> {
-        match &self.current_handle {
-            Some(handle) => iced::widget::image(handle).into(),
-            None => iced::widget::text("No selected handle...").into()
+        match (&self.current_handle, &self.background_handle) {
+            (Some(handle), Some(background)) => stack![
+                image(background)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .content_fit(ContentFit::Cover),
+                container(
+                    image(handle).content_fit(ContentFit::Contain)
+                )
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .center_x(Length::Fill)
+                    .center_y(Length::Fill)
+            ].into(),
+            _ => container(iced::widget::text("No selected handle..."))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .into()
         }
     }
 }
