@@ -4,6 +4,7 @@ use iced::{widget::{button, image::Handle, Column, Row, Scrollable}, Element, Ta
 use iced::widget::text;
 use onedrive_albums::authentication::oauth2;
 use rkyv::to_bytes;
+use tokio_stream::wrappers::ReceiverStream;
 use std::{collections::HashMap, sync::Arc};
 use lan_tcp::networking::node::{Destination, Node, RecvPacket, SendPacket};
 
@@ -71,15 +72,27 @@ impl Application {
                 ])
             },
 
-            Message::NodeCreated(node) => {
+            Message::NodeCreated(mut node) => {
+                let task = if let Some(node) = Arc::get_mut(&mut node) {
+                    match node.take_receiver() {
+                        Some(receiver) => Task::stream(ReceiverStream::new(receiver))
+                            .map(Message::Recv),
+                        None => Task::done(Message::Error(Error::TcpReceiverMissing))
+                    }
+                } else {
+                    Task::done(Message::Error(Error::CouldNotMutateNodeArc))
+                };
+
                 self.node = Some(node);
-                Task::done(
-                    Message::Batch(vec![
+
+                Task::batch(vec![
+                    Task::done(Message::Batch(vec![
                         Message::Send(ControlToDisplay::RequestUsers),
                         Message::Send(ControlToDisplay::RequestAlbums),
                         Message::Send(ControlToDisplay::RequestActive),
-                    ])
-                )
+                    ])),
+                    task
+               ])
             },
 
             Message::Error(e) => {
