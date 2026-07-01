@@ -204,7 +204,7 @@ impl SQL {
         .bind(&user.name)
         .bind(&user.email)
         .bind(&user.refresh_token)
-        .bind(&user.expiry_date_time)
+        .bind(user.expiry_date_time)
         .execute(Database::get_database_pool()?)
         .await.map_err(Error::from)
     }

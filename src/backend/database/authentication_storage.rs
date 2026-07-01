@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use onedrive_albums::authentication;
 use onedrive_albums::authentication::oauth2::refresh::refresh_tokenset;
 use tokio::sync::OnceCell;
 use tokio::sync::Mutex;
@@ -76,7 +75,7 @@ impl Authentication {
         }
         user.refresh_token = tokenset.refresh_token;
         user.expiry_date_time = tokenset.absolute_expiration as i64;
-        SQL::insert_or_update_user(&user).await?;
+        SQL::insert_or_update_user(user).await?;
 
         // If we got to this point, return new access_token
         Ok(tokenset.access_token)

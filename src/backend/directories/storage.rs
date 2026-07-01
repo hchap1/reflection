@@ -12,6 +12,7 @@ const APPLICATION: &str = "reflection";
 
 pub static STORAGE: OnceLock<Storage> = OnceLock::new();
 
+#[allow(dead_code)]
 pub struct Storage {
 
     /// The root folder of the data directory

@@ -67,7 +67,7 @@ pub enum Message {
     AlbumChangeByID(String, String),
     ReloadPhotosInActive(Vec<Photo>),
     LoadNextImage,
-    ImageDataLoaded(usize, Handle, usize, Handle),
+    ImageDataLoaded(usize, ReflectionImage, usize, ReflectionImage),
     
     // Request a synchronisation of photos / files
     SynchronisePhotos,
@@ -87,7 +87,7 @@ pub struct Application {
     current_photo_idx: Option<usize>,
     current_handle: Option<Handle>,
     next_photo_idx: Option<usize>,
-    next_handle: Option<Handle>
+    next_handle: Option<ReflectionImage>
 }
 
 impl Default for Application {
@@ -283,9 +283,11 @@ impl Application {
             // A new set of photos is to be loaded for the active album
             Message::ReloadPhotosInActive(photos) => {
                 self.photos_in_album = Arc::new(photos);
-                self.current_photo_idx = if self.photos_in_album.len() == 0 { None } else { Some(0) };
+                self.current_photo_idx = if self.photos_in_album.is_empty()
+                    { None } else { Some(0) };
                 self.current_handle = None;
-                self.next_photo_idx = if self.photos_in_album.len() == 0 { None } else { Some(0) };
+                self.next_photo_idx = if self.photos_in_album.is_empty()
+                    { None } else { Some(0) };
                 self.next_handle = None;
                 Task::done(Message::LoadNextImage)
             },
@@ -324,7 +326,7 @@ impl Application {
 
                                 // See if the image for the current photo can be loaded
                                 match ReflectionImage::load(current_photo.clone()).await {
-                                    Ok(image) => break Some((image.into_iced(), idx)),
+                                    Ok(image) => break Some((image, idx)),
                                     Err(e) => messages.push(Message::Error(e))
                                 }
 
@@ -357,7 +359,7 @@ impl Application {
 
                             // See if the image for the current photo can be loaded
                             match ReflectionImage::load(current_photo.clone()).await {
-                                Ok(image) => break Some((image.into_iced(), idx)),
+                                Ok(image) => break Some((image, idx)),
                                 Err(e) => messages.push(Message::Error(e))
                             }
 
@@ -386,17 +388,26 @@ impl Application {
 
                         messages
                     },
-                    |messages| Message::Batch(messages)
+                    Message::Batch
                 )
             },
             
             // An image has been loaded
-            Message::ImageDataLoaded(current_idx, current_handle, next_idx, next_handle) => {
+            Message::ImageDataLoaded(current_idx, current_image, next_idx, next_image) => {
+
+                let message = match self.photos_in_album.get(current_idx) {
+                    Some(photo) => Message::Send(
+                        DisplayToControl::ActivePhoto(photo.clone(), current_image.clone())
+                    ),
+                    None => Message::None
+                };
+
+                let current_handle = current_image.into_iced();
                 self.current_photo_idx = Some(current_idx);
                 self.current_handle = Some(current_handle);
                 self.next_photo_idx = Some(next_idx);
-                self.next_handle = Some(next_handle);
-                Task::none()
+                self.next_handle = Some(next_image);
+                Task::done(message)
             }
 
             // Set album by ID

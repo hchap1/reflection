@@ -35,6 +35,7 @@ pub struct Application {
     pub add_state: Option<Vec<(bool, Album)>>
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for Application {
     fn default() -> Application {
         Application {

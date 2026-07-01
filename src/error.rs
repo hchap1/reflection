@@ -1,9 +1,5 @@
 use std::path::PathBuf;
-
-use futures_util::future::join;
-use tokio::{sync::{AcquireError, SetError}, task::JoinError};
-
-use crate::backend::database::authentication_storage::Authentication;
+use tokio::{sync::AcquireError, task::JoinError};
 
 pub type Res<T> = Result<T, Error>;
 
