@@ -7,5 +7,7 @@ fn main() -> Result {
     iced::application(
         || (Application::default(), Task::done(reflection::control::application::Message::Initialise)),
         Application::update, Application::view
-    ).run()
+    )
+    .subscription(Application::subscription)
+    .run()
 }

@@ -265,34 +265,62 @@ pub fn process_packet(
         }
 
         ArchivedControlToDisplay::RequestActive => {
-            Task::batch(vec![
+            // Which album is selected must always be reported, even when a photo
+            // is already showing. An earlier version returned the photo task
+            // directly from here, which silently dropped the SelectedAlbum
+            // packet — leaving control applications unable to tell which album
+            // was playing.
+            let mut tasks = vec![
                 Task::done(
                     Message::Send(
                         DisplayToControl::SelectedAlbum(
                             application.active_album.clone()
                         )
                     )
-                ),
-                {
-                    #[allow(clippy::collapsible_if)]
-                    if let Ok(photos) = application.photos_in_album.lock()
-                        && let Some(idx) = application.current_photo_idx {
-                        if let Some(photo) = photos.get(idx) {
-                            let photo = photo.clone();
-                            return Ok(Task::perform(
-                                ReflectionImage::load(photo.clone()),
-                                |res| match res {
-                                    Ok(res) => Message::Send(DisplayToControl::ActivePhoto(photo, res)),
-                                    Err(e) => Message::Error(e)
-                                }
-                            ));
-                        }
-                    };
+                )
+            ];
 
-                    Task::none()
-                }
-            ])
+            // Copy the active photo out from under the lock before awaiting.
+            let active_photo = match application.photos_in_album.lock() {
+                Ok(photos) => application.current_photo_idx
+                    .and_then(|idx| photos.get(idx).cloned()),
+                Err(_) => None
+            };
+
+            if let Some(photo) = active_photo {
+                let photo_for_message = photo.clone();
+                tasks.push(Task::perform(
+                    ReflectionImage::load_preview(photo),
+                    move |res| match res {
+                        Ok(res) => Message::Send(
+                            DisplayToControl::ActivePhoto(photo_for_message.clone(), res)
+                        ),
+                        Err(e) => Message::Error(e)
+                    }
+                ));
+            }
+
+            Task::batch(tasks)
         }
+
+        // Liveness probe from a control application
+        ArchivedControlToDisplay::Ping => Task::done(
+            Message::Send(DisplayToControl::Pong)
+        ),
+
+        // Report the current timing settings to the control application
+        ArchivedControlToDisplay::RequestSettings => Task::done(
+            Message::Send(DisplayToControl::SettingsInformation(
+                application.settings.period,
+                application.settings.blur_duration
+            ))
+        ),
+
+        // Apply new timing settings. Clamping, persistence and the echo back to
+        // the control applications all happen in the ApplySettings handler.
+        ArchivedControlToDisplay::SetSettings(period, blur_duration) => Task::done(
+            Message::ApplySettings(period.to_native(), blur_duration.to_native())
+        ),
 
         // Set the currently active album, return through
         // networking and also save in the database

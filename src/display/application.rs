@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::Instant;
 
 use bytes::Bytes;
 use iced::widget::image::Handle;
@@ -9,6 +9,7 @@ use iced::{
     ContentFit,
     Element,
     Length,
+    Subscription,
     Task
 };
 
@@ -27,7 +28,8 @@ use crate::backend::database::database_backend::Database;
 use crate::backend::database::sql::Album;
 use crate::backend::database::sql::Photo;
 use crate::backend::database::sql::SQL;
-use crate::backend::directories::image::ReflectionImage;
+use crate::backend::database::settings::Settings;
+use crate::backend::directories::image::{PREVIEW_SIZE, ReflectionImage};
 use crate::backend::networking::network_message::DisplayToControl;
 use crate::display::check_all::synchronise_files;
 use crate::display::check_all::synchronise_photos;
@@ -67,13 +69,25 @@ pub enum Message {
     AuthenticatedMessage(String, AuthenticatedMessage),
     DownloadComplete(Photo),
 
+    // Timing settings
+    SettingsLoaded(Settings),
+    ApplySettings(f32, f32),
+
+    // Advance the crossfade between the outgoing and incoming photo
+    FadeTick,
+
     // The active album has been changed
     AlbumChange(Option<Album>),
     AlbumChangeByID(String, String),
     ReloadPhotosInActive(Vec<Photo>),
     LoadNextImage,
-    ImageDataLoaded(u64, usize, ReflectionImage, Handle, usize, ReflectionImage),
+    ImageDataLoaded(Box<LoadedSwitch>),
     SwitchFailed(u64),
+
+    // Decode the following photo ahead of time, once the screen has settled
+    PreloadNext,
+    NextImageLoaded(u64, usize, ReflectionImage),
+    NextImageUnavailable(u64),
     
     // Request a synchronisation of photos / files
     SynchronisePhotos,
@@ -83,10 +97,80 @@ pub enum Message {
 
 }
 
+/// Everything a completed image switch produces: the photo to show now, its
+/// blurred backdrop, a small preview for the control applications, and the
+/// next photo decoded ahead of time.
+///
+/// Grouped into a struct (and boxed in the message) because these are always
+/// produced and consumed together, and a seven-field message variant would
+/// otherwise be passed around positionally.
+#[derive(Clone, Debug)]
+pub struct LoadedSwitch {
+    pub generation: u64,
+    pub current_idx: usize,
+    pub current: ReflectionImage,
+    pub background: Handle,
+    pub preview: ReflectionImage,
+}
+
+/// An in-progress crossfade from the previously displayed photo to the current
+/// one. The outgoing pair of handles is held here (rather than being dropped as
+/// soon as the new photo loads) so both can be drawn while the fade runs.
+struct Fade {
+    started: Instant,
+    duration: std::time::Duration,
+    previous_handle: Handle,
+    previous_background: Handle,
+}
+
+/// How long to keep drawing frames after a crossfade has finished.
+///
+/// Ending a fade drops the outgoing photo's handles, and the renderer frees the
+/// atlas space they occupied. A frame drawn while that is in progress can come
+/// out damaged — and because a still photo needs no redraws, that damaged frame
+/// would otherwise stay on screen until the next photo change several seconds
+/// later. Continuing to draw briefly guarantees the last frame the viewer is
+/// left looking at is a correct one.
+const SETTLE_DURATION: std::time::Duration = std::time::Duration::from_millis(500);
+
+impl Fade {
+    /// 0.0 at the start of the fade, 1.0 once it has finished.
+    fn progress(&self) -> f32 {
+        let duration = self.duration.as_secs_f32();
+        if duration <= 0.0 {
+            return 1.0;
+        }
+        (self.started.elapsed().as_secs_f32() / duration).clamp(0.0, 1.0)
+    }
+
+    fn is_complete(&self) -> bool {
+        self.progress() >= 1.0
+    }
+}
+
 pub struct Application {
     node: Option<Arc<Node>>,
     pub active_album: Option<Album>,
     download_permit: Arc<Semaphore>,
+
+    // Photo cycling period and crossfade duration, persisted in the database
+    // and editable from the control application.
+    pub settings: Settings,
+    fade: Option<Fade>,
+
+    // Deadline until which frames keep being drawn after a crossfade ends.
+    // See `SETTLE_DURATION`.
+    settling_until: Option<Instant>,
+
+    // Cycle timing. `cycle_generation` and `first_delay` together identify the
+    // current cycling timer; changing either rebuilds the subscription. They are
+    // recomputed only when a photo changes or the period changes, so the
+    // subscription stays stable in between rather than being torn down on every
+    // update. `last_switch` anchors the cycle so a new period is measured from
+    // when the current photo actually appeared.
+    last_switch: Instant,
+    cycle_generation: u64,
+    first_delay: std::time::Duration,
 
     // Manage display
     pub photos_in_album: Arc<Mutex<Vec<Photo>>>,
@@ -100,7 +184,10 @@ pub struct Application {
     // still decoding when the next tick fires, or one that belongs to an album
     // that has since been replaced).
     switch_in_flight: bool,
-    switch_generation: u64
+    switch_generation: u64,
+
+    // Guards against stacking up lookahead decodes
+    preload_in_flight: bool
 }
 
 impl Default for Application {
@@ -116,6 +203,11 @@ impl Application {
             node: None,
             active_album: None,
             download_permit: Arc::new(Semaphore::new(10)),
+            settings: Settings::default(),
+            fade: None,
+            last_switch: Instant::now(),
+            cycle_generation: 0,
+            first_delay: Settings::default().period_duration(),
             photos_in_album: Arc::new(Mutex::new(Vec::new())),
             current_photo_idx: None,
             current_handle: None,
@@ -123,7 +215,9 @@ impl Application {
             next_photo_idx: None,
             next_handle: None,
             switch_in_flight: false,
-            switch_generation: 0
+            switch_generation: 0,
+            preload_in_flight: false,
+            settling_until: None
         }
     }
     
@@ -146,25 +240,79 @@ impl Application {
                         Ok(node) => Message::NodeCreated(Arc::new(node)),
                         Err(e) => Message::Error(e.into())
                     }),
-                    // Cycle to the next image in the active album once a second.
-                    // `interval_at` (rather than `interval`) skips the immediate
-                    // first tick, so we don't double-advance right on startup.
-                    Task::stream(IntervalStream::new(
-                        tokio::time::interval_at(
-                            tokio::time::Instant::now() + Duration::from_secs(1),
-                            Duration::from_secs(1)
-                        )
-                    )).map(|_| Message::LoadNextImage),
                 ])
+                // Photo cycling is driven by `subscription` rather than a stream
+                // started here, so that changing the period from the control
+                // application re-times the cycle immediately.
             },
 
             // Database is ready — run authentication before anything else
             Message::DatabaseReady => {
-                Task::future(Authentication::create_initial())
-                .map(|res| match res {
-                    Ok(()) => Message::AuthenticationReady,
-                    Err(e) => Message::Error(e)
-                })
+                Task::batch(vec![
+                    Task::future(Authentication::create_initial())
+                    .map(|res| match res {
+                        Ok(()) => Message::AuthenticationReady,
+                        Err(e) => Message::Error(e)
+                    }),
+                    // Restore the persisted timing settings now the tables exist
+                    Task::future(Settings::load())
+                    .map(|res| match res {
+                        Ok(settings) => Message::SettingsLoaded(settings),
+                        Err(e) => Message::Error(e)
+                    }),
+                ])
+            },
+
+            // Timing settings restored from (or written to) the database
+            Message::SettingsLoaded(settings) => {
+                self.settings = settings;
+                self.retime_cycle();
+                Task::none()
+            },
+
+            // A control application changed the settings — clamp, persist, and
+            // echo the clamped result back to every control application so their
+            // sliders reflect what was actually stored.
+            Message::ApplySettings(period, blur_duration) => {
+                let settings = Settings::clamped(period, blur_duration);
+                self.settings = settings;
+                self.retime_cycle();
+
+                Task::future(async move { settings.save().await })
+                    .map(|res| match res {
+                        Ok(saved) => Message::Batch(vec![
+                            Message::SettingsLoaded(saved),
+                            Message::Send(DisplayToControl::SettingsInformation(
+                                saved.period,
+                                saved.blur_duration
+                            ))
+                        ]),
+                        Err(e) => Message::Error(e)
+                    })
+            },
+
+            // Drive the crossfade; drop it once it has run its course so the
+            // per-frame subscription can go idle again.
+            Message::FadeTick => {
+                if self.fade.as_ref().is_some_and(Fade::is_complete) {
+                    self.fade = None;
+
+                    // Keep drawing for a moment while the renderer releases the
+                    // outgoing photo's atlas space, so the frame left on screen
+                    // is a settled one.
+                    self.settling_until = Some(Instant::now() + SETTLE_DURATION);
+
+                    // The animation is over and the screen is static again —
+                    // now is the cheapest moment to decode the next photo.
+                    return Task::done(Message::PreloadNext);
+                }
+
+                // Stop the extra redraws once things have settled
+                if self.settling_until.is_some_and(|until| Instant::now() >= until) {
+                    self.settling_until = None;
+                }
+
+                Task::none()
             },
 
             // Authentication is ready — start remaining DB-dependent tasks
@@ -315,6 +463,10 @@ impl Application {
                     self.switch_generation += 1;
                     self.switch_in_flight = false;
                     self.next_handle = None;
+                    // Any lookahead decode still running belongs to the old
+                    // album; its result will be discarded by generation, so free
+                    // the guard for the new one straight away.
+                    self.preload_in_flight = false;
 
                     if empty {
                         // Nothing to show for this album — clear the display.
@@ -322,6 +474,7 @@ impl Application {
                         self.next_photo_idx = None;
                         self.current_handle = None;
                         self.background_handle = None;
+                        self.fade = None;
                     } else {
                         // Keep showing the previous image (if any) until the new
                         // album's first image has actually loaded.
@@ -348,19 +501,27 @@ impl Application {
                     return Task::none();
                 }
 
-                let idx = if let Some(idx) = self.next_photo_idx {
-                    idx
-                } else {
-                    return Task::none()
-                };
-
-                self.current_photo_idx = Some(idx);
-
                 // Clone ARC for future
                 let current_photos_vec = match self.photos_in_album.lock() {
                     Ok(current_photos_vec) => current_photos_vec.clone(),
                     _ => return Task::done(Message::Error(Error::MutexLockFailed))
                 };
+
+                if current_photos_vec.is_empty() {
+                    return Task::none();
+                }
+
+                // Normally the lookahead has already chosen and decoded the next
+                // photo. If it has not finished yet — a very short period, or a
+                // slow disk — fall back to the one after the current photo and
+                // let the task below decode it inline.
+                let idx = match (self.next_photo_idx, self.current_photo_idx) {
+                    (Some(idx), _) => idx,
+                    (None, Some(current)) => (current + 1) % current_photos_vec.len(),
+                    (None, None) => 0
+                };
+
+                self.current_photo_idx = Some(idx);
 
                 let next = self.next_handle.take();
                 let generation = self.switch_generation;
@@ -407,61 +568,127 @@ impl Application {
                             }
                         };
 
-                        // Find the next valid image to cache
-                        idx = current_idx + 1;
-                        let maybe_next = loop {
+                        // Derive the backdrop and the control-application preview
+                        // from the already-decoded image on a blocking-friendly
+                        // thread rather than reading the file a second time.
+                        //
+                        // The preview is produced first and the blur taken from
+                        // it: blurring a 512px copy costs a fraction of blurring
+                        // the full display-sized image, and the result is
+                        // downscaled to 64px and blurred anyway.
+                        let derive_from = current_handle.clone();
+                        let derived = tokio::task::spawn_blocking(move || {
+                            let preview = derive_from.fitted(PREVIEW_SIZE);
+                            let background = preview.blurred_background();
+                            (background, preview)
+                        }).await;
 
-                            // Retrieve the current photo
-                            let current_photo = match current_photos_vec.get(idx) {
-                                Some(current_photo) => current_photo,
-                                None => { idx = 0; continue }
-                            };
-
-                            // See if the image for the current photo can be loaded
-                            match ReflectionImage::load(current_photo.clone()).await {
-                                Ok(image) => break Some((image, idx)),
-                                Err(e) => messages.push(Message::Error(e))
-                            }
-
-                            idx += 1;
-
-                            // If we have checked every idx
-                            if idx == original_idx {
-                                break None
-                            }
+                        let (background, preview) = match derived {
+                            Ok(derived) => derived,
+                            Err(_) => (
+                                current_handle.clone().into_iced(),
+                                current_handle.clone()
+                            )
                         };
 
-                        let (next_handle, next_idx) = match maybe_next {
-                            Some(next) => next,
-                            None => {
-                                messages.push(Message::SwitchFailed(generation));
-                                messages.push(Message::Error(Error::NoValidImageInAlbum));
-                                return messages;
-                            }
-                        };
-
-                        // Blurring is CPU bound, so run it on a blocking-friendly thread
-                        let background_image = current_handle.clone();
-                        let background_handle = match tokio::task::spawn_blocking(
-                            move || background_image.blurred_background()
-                        ).await {
-                            Ok(handle) => handle,
-                            Err(_) => current_handle.clone().into_iced()
-                        };
-
-                        messages.push(Message::ImageDataLoaded(
+                        messages.push(Message::ImageDataLoaded(Box::new(LoadedSwitch {
                             generation,
                             current_idx,
-                            current_handle,
-                            background_handle,
-                            next_idx,
-                            next_handle
-                        ));
+                            current: current_handle,
+                            background,
+                            preview
+                        })));
 
                         messages
                     },
                     Message::Batch
                 )
+            },
+
+            // Decode the photo that follows the one on screen, so the next
+            // switch is a cache hit rather than a decode.
+            //
+            // Deliberately kept out of the switch itself: decoding a full
+            // resolution photo costs over a second of CPU, and doing it as part
+            // of the switch delayed the new photo appearing and starved the
+            // crossfade of the frames it needed to animate smoothly. The photo
+            // is not needed for another whole period, so it is decoded once the
+            // screen has settled instead.
+            Message::PreloadNext => {
+                if self.preload_in_flight || self.next_handle.is_some() {
+                    return Task::none();
+                }
+
+                let from_idx = match self.current_photo_idx {
+                    Some(idx) => idx,
+                    None => return Task::none()
+                };
+
+                let photos = match self.photos_in_album.lock() {
+                    Ok(photos) => photos.clone(),
+                    _ => return Task::done(Message::Error(Error::MutexLockFailed))
+                };
+
+                if photos.is_empty() {
+                    return Task::none();
+                }
+
+                let generation = self.switch_generation;
+                self.preload_in_flight = true;
+
+                Task::perform(
+                    async move {
+                        let count = photos.len();
+                        let mut messages = Vec::new();
+
+                        // Walk forward from the current photo, wrapping, until
+                        // one decodes or every candidate has been tried.
+                        for offset in 1..=count {
+                            let idx = (from_idx + offset) % count;
+
+                            let photo = match photos.get(idx) {
+                                Some(photo) => photo.clone(),
+                                None => continue
+                            };
+
+                            match ReflectionImage::load(photo).await {
+                                Ok(image) => {
+                                    messages.push(Message::NextImageLoaded(
+                                        generation, idx, image
+                                    ));
+                                    return messages;
+                                }
+                                Err(e) => messages.push(Message::Error(e))
+                            }
+                        }
+
+                        messages.push(Message::NextImageUnavailable(generation));
+                        messages
+                    },
+                    Message::Batch
+                )
+            },
+
+            // The lookahead decode finished
+            Message::NextImageLoaded(generation, idx, image) => {
+                self.preload_in_flight = false;
+
+                // Discard a decode that belongs to an album since replaced
+                if generation == self.switch_generation {
+                    self.next_photo_idx = Some(idx);
+                    self.next_handle = Some(image);
+                }
+
+                Task::none()
+            },
+
+            // Nothing in the album could be decoded; drop the guard so a later
+            // attempt (e.g. after a download completes) can try again.
+            Message::NextImageUnavailable(generation) => {
+                if generation == self.switch_generation {
+                    self.preload_in_flight = false;
+                }
+                Task::none()
             },
 
             // A switch (current + next lookahead) failed to find any valid image.
@@ -476,7 +703,14 @@ impl Application {
             }
 
             // An image has been loaded
-            Message::ImageDataLoaded(generation, current_idx, current_image, background_handle, next_idx, next_image) => {
+            Message::ImageDataLoaded(loaded) => {
+                let LoadedSwitch {
+                    generation,
+                    current_idx,
+                    current,
+                    background,
+                    preview
+                } = *loaded;
 
                 // The active album changed while this switch was in flight — its
                 // index/handles no longer refer to anything meaningful, discard it.
@@ -484,27 +718,67 @@ impl Application {
                     return Task::none();
                 }
 
-                let current_photos_vec = match self.photos_in_album.lock() {
-                    Ok(current_photos_vec) => current_photos_vec,
-                    _ => return Task::done(Message::Error(Error::MutexLockFailed))
+                // Control applications get the small preview, never the full
+                // size image — a display-resolution photo is far too large to
+                // push over the network on every switch.
+                //
+                // Scoped so the lock is released before the rest of this handler
+                // touches `self` again.
+                let message = {
+                    let current_photos_vec = match self.photos_in_album.lock() {
+                        Ok(current_photos_vec) => current_photos_vec,
+                        _ => return Task::done(Message::Error(Error::MutexLockFailed))
+                    };
+
+                    match current_photos_vec.get(current_idx) {
+                        Some(photo) => Message::Send(
+                            DisplayToControl::ActivePhoto(photo.clone(), preview)
+                        ),
+                        None => Message::None
+                    }
                 };
 
+                let current_handle = current.into_iced();
 
-                let message = match current_photos_vec.get(current_idx) {
-                    Some(photo) => Message::Send(
-                        DisplayToControl::ActivePhoto(photo.clone(), current_image.clone())
-                    ),
-                    None => Message::None
+                // Start a crossfade from whatever is currently on screen. There
+                // is nothing to fade from on the very first photo, so that one
+                // appears immediately rather than fading up from a blank screen.
+                self.fade = match (self.current_handle.take(), self.background_handle.take()) {
+                    (Some(previous_handle), Some(previous_background)) => Some(Fade {
+                        started: Instant::now(),
+                        duration: self.settings.blur_duration(),
+                        previous_handle,
+                        previous_background
+                    }),
+                    _ => None
                 };
 
-                let current_handle = current_image.into_iced();
-                self.background_handle = Some(background_handle);
+                let fading = self.fade.is_some();
+
+                self.background_handle = Some(background);
                 self.current_photo_idx = Some(current_idx);
                 self.current_handle = Some(current_handle);
-                self.next_photo_idx = Some(next_idx);
-                self.next_handle = Some(next_image);
+                // The cached decode has been consumed by this switch
+                self.next_photo_idx = None;
+                self.next_handle = None;
                 self.switch_in_flight = false;
-                Task::done(message)
+
+                // Anchor the next cycle to when this photo actually appeared, so
+                // a slow decode does not shorten the time it stays on screen.
+                self.last_switch = Instant::now();
+                self.retime_cycle();
+
+                // With a crossfade running, the lookahead decode waits until it
+                // finishes (see FadeTick) so the animation gets the CPU. Without
+                // one there is nothing to protect, so start immediately.
+                if fading {
+                    Task::done(message)
+                } else {
+                    Task::batch(vec![
+                        Task::done(message),
+                        Task::done(Message::PreloadNext)
+                    ])
+                }
             }
 
             // Set album by ID
@@ -575,13 +849,21 @@ impl Application {
                     && album.id == photo.album_id
                     && let Ok(mut photos_vec) = self.photos_in_album.lock()
                 {
-                    photos_vec.push(photo)
+                    photos_vec.push(photo.clone())
                 }
 
+                // Push the newly available photo to the control applications so
+                // an album appears to fill in as it downloads, rather than only
+                // when the whole synchronisation finishes.
+                let announce = Task::batch(vec![
+                    Task::done(Message::Send(DisplayToControl::ReturnPhoto(photo.clone()))),
+                    Task::done(Message::SendThumbnail(photo))
+                ]);
+
                 if self.current_handle.is_none() {
-                    Task::done(Message::LoadNextImage)
+                    Task::batch(vec![announce, Task::done(Message::LoadNextImage)])
                 } else {
-                    Task::none()
+                    announce
                 }
             }
 
@@ -611,26 +893,84 @@ impl Application {
 
     }
 
+    /// Re-anchor the cycling timer against the photo currently on screen.
+    ///
+    /// Called whenever the period changes so the new value applies immediately:
+    /// the next switch lands one *new* period after the current photo appeared,
+    /// rather than after the old interval finishes running down. If that moment
+    /// has already passed — the period was shortened below the time already
+    /// elapsed — the delay collapses to zero and the photo changes at once.
+    fn retime_cycle(&mut self) {
+        self.first_delay = self.settings
+            .period_duration()
+            .saturating_sub(self.last_switch.elapsed());
+        self.cycle_generation = self.cycle_generation.wrapping_add(1);
+    }
+
+    /// Timed events the application reacts to.
+    ///
+    /// The cycling timer's identity is `(cycle_generation, first_delay, period)`,
+    /// all of which change only on a photo switch or a settings change — so the
+    /// subscription is stable between those events, and rebuilt precisely when
+    /// the timing needs to change. The per-frame fade ticks are only subscribed
+    /// to while a crossfade is actually running, so an idle photo frame is not
+    /// redrawing continuously.
+    pub fn subscription(&self) -> Subscription<Message> {
+        let cycle = Subscription::run_with(
+            (self.cycle_generation, self.first_delay, self.settings.period_duration()),
+            |(_, first_delay, period)| {
+                let first_delay = *first_delay;
+                let period = *period;
+
+                IntervalStream::new(tokio::time::interval_at(
+                    tokio::time::Instant::now() + first_delay,
+                    period
+                ))
+            }
+        ).map(|_| Message::LoadNextImage);
+
+        // Frames are drawn while a crossfade runs, and for a short while after it
+        // ends (see `SETTLE_DURATION`). A photo sitting still needs none.
+        if self.fade.is_some() || self.settling_until.is_some() {
+            Subscription::batch(vec![
+                cycle,
+                iced::window::frames().map(|_| Message::FadeTick)
+            ])
+        } else {
+            cycle
+        }
+    }
+
     /// View logic of the application
     ///
     /// Renders the current photo centered over a full-screen, blurred copy of itself
     /// so there is never a hard edge / letterboxed gap around images that don't match
     /// the screen's aspect ratio.
+    ///
+    /// While a crossfade is running the outgoing photo is drawn underneath at full
+    /// opacity and the incoming one fades in on top of it, so the transition never
+    /// dips through a blank frame.
     pub fn view(&self) -> Element<'_, Message> {
         match (&self.current_handle, &self.background_handle) {
-            (Some(handle), Some(background)) => stack![
-                image(background)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .content_fit(ContentFit::Cover),
-                container(
-                    image(handle).content_fit(ContentFit::Contain)
-                )
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .center_x(Length::Fill)
-                    .center_y(Length::Fill)
-            ].into(),
+            (Some(handle), Some(background)) => {
+                let mut layers: Vec<Element<'_, Message>> = Vec::new();
+
+                let opacity = match &self.fade {
+                    Some(fade) => {
+                        layers.push(photo_layers(
+                            &fade.previous_background,
+                            &fade.previous_handle,
+                            1.0
+                        ));
+                        fade.progress()
+                    }
+                    None => 1.0
+                };
+
+                layers.push(photo_layers(background, handle, opacity));
+
+                stack(layers).into()
+            }
             _ => container(iced::widget::text("No selected handle..."))
                 .width(Length::Fill)
                 .height(Length::Fill)
@@ -639,4 +979,30 @@ impl Application {
                 .into()
         }
     }
+}
+
+/// One photo as it is composited on screen: a blurred cover-fitted backdrop with
+/// the photo itself contained and centred over it, both at the given opacity so
+/// the pair fades as a single unit.
+fn photo_layers<'a>(
+    background: &Handle,
+    handle: &Handle,
+    opacity: f32,
+) -> Element<'a, Message> {
+    stack![
+        image(background)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .content_fit(ContentFit::Cover)
+            .opacity(opacity),
+        container(
+            image(handle)
+                .content_fit(ContentFit::Contain)
+                .opacity(opacity)
+        )
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+    ].into()
 }

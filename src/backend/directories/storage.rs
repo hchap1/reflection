@@ -105,6 +105,35 @@ impl Storage {
         Ok((album_directory.join(photo_name), album_directory.join(format!("thumbnail_{photo_name}"))))
     }
 
+    /// Path of the display-sized copy of a photo.
+    ///
+    /// Originals are full camera resolution — several times more pixels than any
+    /// screen shows — and decoding one costs over a second of CPU on a Pi. A
+    /// pre-scaled copy is kept alongside so the slideshow decodes a fraction of
+    /// the data on every photo change.
+    pub async fn get_display_path(
+        &self,
+        user_id: &str,
+        album_id: &str,
+        photo_name: &str
+    ) -> Res<PathBuf> {
+        let album_directory = self.photos
+            .join(user_id)
+            .join(album_id);
+
+        let exists = tokio::fs::try_exists(&album_directory)
+            .await
+            .map_err(|_| Error::CheckFileExistsError)?;
+
+        if !exists {
+            tokio::fs::create_dir_all(&album_directory)
+                .await
+                .map_err(|_| Error::FailedToCreateDirectory(album_directory.clone()))?;
+        }
+
+        Ok(album_directory.join(format!("display_{photo_name}")))
+    }
+
     pub async fn get_temporary_path(
         &self,
         user_id: &str,

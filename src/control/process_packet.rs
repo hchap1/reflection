@@ -89,12 +89,20 @@ pub fn process_packet(application: &mut Application, recv_packet: RecvPacket) ->
                     ArchivedOption::Some(album) => {
                         application.active_album = Some((album.user_id.to_string(), album.id.to_string()));
                         application.albums.insert((album.user_id.to_string(), album.id.to_string()), own_album(album));
+
+                        // Open the playing album in the browse grid on connect,
+                        // so its thumbnails load without needing a click.
+                        if application.browsing_album.is_none() {
+                            return Ok(Task::done(Message::BrowseAlbum(own_album(album))));
+                        }
+
+                        Task::none()
                     },
                     ArchivedOption::None => {
                         application.active_album = None;
+                        Task::none()
                     }
                 }
-                Task::none()
             },
 
             ArchivedDisplayToControl::ReturnAlbumCover(album, cover) => {
@@ -151,6 +159,16 @@ pub fn process_packet(application: &mut Application, recv_packet: RecvPacket) ->
                     None => application.add_state = Some(vec![(exists, album)])
                 }
                 Task::none()
+            },
+
+            // Liveness only — `Message::Recv` has already recorded its arrival.
+            ArchivedDisplayToControl::Pong => Task::none(),
+
+            ArchivedDisplayToControl::SettingsInformation(period, blur_duration) => {
+                Task::done(Message::SettingsReceived(
+                    period.to_native(),
+                    blur_duration.to_native()
+                ))
             }
         }
     )

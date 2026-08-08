@@ -76,6 +76,20 @@ pub enum ControlToDisplay {
     // Can select to add an album to the database
     RequestAlbumsBelongingToUser(ObfuscatedUser),
     AddAlbum(Album),
+
+    // Ask the display application for the current timing settings
+    // This expects a single SettingsInformation in response
+    RequestSettings,
+
+    // Set the display timing settings: (period, blur_duration), both in seconds.
+    // The display application clamps these before storing them, and echoes back
+    // the clamped result so the control application's sliders stay in sync.
+    SetSettings(f32, f32),
+
+    // Liveness probe. The transport gives no connection-state signal of its own,
+    // so the control application polls with this and treats the arrival of any
+    // packet (Pong included) as proof the link is still up.
+    Ping,
 }
 
 #[derive(Clone, Debug, Archive, Serialize, Deserialize)]
@@ -117,4 +131,11 @@ pub enum DisplayToControl {
 
     // Return the albums owned by a user
     ReturnAlbumsBelongingToUser(Album, bool),
+
+    // The current timing settings: (period, blur_duration), both in seconds.
+    // Sent in response to RequestSettings / SetSettings, always post-clamping.
+    SettingsInformation(f32, f32),
+
+    // Reply to Ping
+    Pong,
 }
